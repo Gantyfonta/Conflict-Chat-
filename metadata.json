@@ -1,0 +1,5 @@
+{
+  "name": "Conflict",
+  "description": "A Discord-like chat application where users can join rooms and interact with AI-powered personas. Features a sleek, modern interface for simulated server and direct messaging experiences, powered by the Gemini API.",
+  "requestFramePermissions": []
+}
