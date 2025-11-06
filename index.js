@@ -1,5 +1,5 @@
-// FIX: Declare firebase as a global variable to resolve "Cannot find name 'firebase'" errors.
-declare var firebase: any;
+// Since we are using the compat libraries loaded via script tags in index.html,
+// the firebase object is available globally.
 
 // =================================================================================
 // Firebase Configuration
@@ -43,24 +43,21 @@ const chatView = document.getElementById('chat-view');
 const chatHeader = document.getElementById('chat-header');
 const messageList = document.getElementById('message-list');
 const messageForm = document.getElementById('message-form');
-// FIX: Cast to HTMLInputElement to access properties like 'value' and 'placeholder'.
-const messageInput = document.getElementById('message-input') as HTMLInputElement;
-// FIX: Cast to HTMLButtonElement to access 'disabled' property.
-const sendButton = document.getElementById('send-button') as HTMLButtonElement;
+const messageInput = document.getElementById('message-input');
+const sendButton = document.getElementById('send-button');
 const userListAside = document.getElementById('user-list-aside');
 const addServerModal = document.getElementById('add-server-modal');
 const addServerForm = document.getElementById('add-server-form');
 const cancelAddServerButton = document.getElementById('cancel-add-server');
-// FIX: Cast to HTMLInputElement to access 'value' property.
-const serverNameInput = document.getElementById('server-name-input') as HTMLInputElement;
+const serverNameInput = document.getElementById('server-name-input');
 
 
 // =================================================================================
 // App State
 // =================================================================================
-let currentUser: any = null;
-let activeServerId: string | null = null;
-let activeChannelId: string | null = null;
+let currentUser = null;
+let activeServerId = null;
+let activeChannelId = null;
 let messageUnsubscribe = () => {};
 let channelUnsubscribe = () => {};
 let usersUnsubscribe = () => {};
@@ -68,7 +65,7 @@ let usersUnsubscribe = () => {};
 // =================================================================================
 // Authentication
 // =================================================================================
-auth.onAuthStateChanged(async (user: any) => {
+auth.onAuthStateChanged(async (user) => {
   if (user) {
     // User is signed in.
     currentUser = {
@@ -101,7 +98,7 @@ const signIn = () => {
         loginErrorContainer.textContent = '';
     }
 
-    auth.signInWithPopup(provider).catch((error: any) => {
+    auth.signInWithPopup(provider).catch((error) => {
         console.error("Sign in error", error);
         if (loginErrorContainer) {
             let message = "An unknown error occurred. Please try again.";
@@ -121,7 +118,7 @@ const signIn = () => {
         }
     });
 };
-const signOut = () => auth.signOut().catch((error: any) => console.error("Sign out error", error));
+const signOut = () => auth.signOut().catch((error) => console.error("Sign out error", error));
 
 // =================================================================================
 // UI Rendering Functions
@@ -140,7 +137,7 @@ const renderUserInfo = () => {
   `;
 };
 
-const renderServers = (servers: any[]) => {
+const renderServers = (servers) => {
     serverList.innerHTML = ''; // Clear existing servers
     servers.forEach(server => {
         const isActive = server.id === activeServerId;
@@ -169,7 +166,7 @@ const renderServers = (servers: any[]) => {
     serverList.appendChild(addServerButton);
 };
 
-const renderChannels = (server: any, channels: any[]) => {
+const renderChannels = (server, channels) => {
     serverNameHeader.textContent = server.name;
     channelList.innerHTML = `
         <div class="flex items-center justify-between px-2 pt-2 pb-1">
@@ -189,7 +186,7 @@ const renderChannels = (server: any, channels: any[]) => {
     });
 };
 
-const renderMessages = (messages: any[]) => {
+const renderMessages = (messages) => {
     messageList.innerHTML = '';
     messages.forEach(msg => {
         const messageEl = document.createElement('div');
@@ -209,7 +206,7 @@ const renderMessages = (messages: any[]) => {
     messageList.scrollTop = messageList.scrollHeight;
 };
 
-const renderUsers = (users: any[]) => {
+const renderUsers = (users) => {
     userListAside.innerHTML = `<h3 class="text-xs font-bold uppercase text-gray-400 px-2 pt-2 pb-1">Users — ${users.length}</h3>`;
     users.forEach(user => {
         const userEl = document.createElement('div');
@@ -232,7 +229,7 @@ const renderUsers = (users: any[]) => {
 // =================================================================================
 
 const loadServers = () => {
-  db.collection('servers').orderBy('createdAt').onSnapshot(async (snapshot: any) => {
+  db.collection('servers').orderBy('createdAt').onSnapshot(async (snapshot) => {
     if (snapshot.empty) {
         // Create a default server if none exist for a better first-time experience
         const defaultServerRef = db.collection('servers').doc('general');
@@ -240,7 +237,7 @@ const loadServers = () => {
         await defaultServerRef.collection('channels').doc('general').set({ name: 'general' });
         return;
     }
-    const servers = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    const servers = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderServers(servers);
     if (!activeServerId && servers.length > 0) {
       selectServer(servers[0].id);
@@ -251,7 +248,7 @@ const loadServers = () => {
   });
 };
 
-const selectServer = (serverId: string) => {
+const selectServer = (serverId) => {
   if (activeServerId === serverId) return;
 
   activeServerId = serverId;
@@ -262,9 +259,9 @@ const selectServer = (serverId: string) => {
   usersUnsubscribe();
   
   // Visually update servers
-  const serverDocs: any[] = [];
-  db.collection('servers').get().then((snapshot: any) => {
-      snapshot.forEach((doc: any) => serverDocs.push({id: doc.id, ...doc.data()}));
+  const serverDocs = [];
+  db.collection('servers').get().then((snapshot) => {
+      snapshot.forEach((doc) => serverDocs.push({id: doc.id, ...doc.data()}));
       renderServers(serverDocs);
   });
   
@@ -276,11 +273,11 @@ const selectServer = (serverId: string) => {
   placeholderView.style.display = 'flex';
   chatView.style.display = 'none';
 
-  db.collection('servers').doc(serverId).get().then((doc: any) => {
+  db.collection('servers').doc(serverId).get().then((doc) => {
     if (doc.exists) {
       const serverData = doc.data();
-      channelUnsubscribe = db.collection('servers').doc(serverId).collection('channels').onSnapshot((snapshot: any) => {
-        const channels = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+      channelUnsubscribe = db.collection('servers').doc(serverId).collection('channels').onSnapshot((snapshot) => {
+        const channels = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         renderChannels(serverData, channels);
         if (!activeChannelId && channels.length > 0) {
           selectChannel(channels[0].id);
@@ -289,14 +286,14 @@ const selectServer = (serverId: string) => {
     }
   });
 
-  usersUnsubscribe = db.collection('users').onSnapshot((snapshot: any) => {
-      const users = snapshot.docs.map((doc: any) => ({id: doc.id, ...doc.data()}));
+  usersUnsubscribe = db.collection('users').onSnapshot((snapshot) => {
+      const users = snapshot.docs.map((doc) => ({id: doc.id, ...doc.data()}));
       renderUsers(users);
   });
 
 };
 
-const selectChannel = (channelId: string) => {
+const selectChannel = (channelId) => {
   activeChannelId = channelId;
   
   // Unsubscribe from previous channel's messages
@@ -305,7 +302,7 @@ const selectChannel = (channelId: string) => {
   placeholderView.style.display = 'none';
   chatView.style.display = 'flex';
   
-  db.collection('servers').doc(activeServerId).collection('channels').doc(channelId).get().then((doc: any) => {
+  db.collection('servers').doc(activeServerId).collection('channels').doc(channelId).get().then((doc) => {
       if (doc.exists) {
         const channelData = doc.data();
         chatHeader.innerHTML = `
@@ -317,20 +314,20 @@ const selectChannel = (channelId: string) => {
   });
 
   messageUnsubscribe = db.collection('servers').doc(activeServerId).collection('channels').doc(channelId)
-    .collection('messages').orderBy('timestamp', 'asc').onSnapshot((snapshot: any) => {
-      const messages = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    .collection('messages').orderBy('timestamp', 'asc').onSnapshot((snapshot) => {
+      const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       renderMessages(messages);
     });
 
   // Re-render channels to show active state
-  db.collection('servers').doc(activeServerId).get().then((serverDoc: any) => {
-      db.collection('servers').doc(activeServerId).collection('channels').get().then((channelDocs: any) => {
-          renderChannels(serverDoc.data(), channelDocs.docs.map((d: any) => ({id: d.id, ...d.data()})));
+  db.collection('servers').doc(activeServerId).get().then((serverDoc) => {
+      db.collection('servers').doc(activeServerId).collection('channels').get().then((channelDocs) => {
+          renderChannels(serverDoc.data(), channelDocs.docs.map((d) => ({id: d.id, ...d.data()})));
       });
   });
 };
 
-const handleSendMessage = (e: Event) => {
+const handleSendMessage = (e) => {
   e.preventDefault();
   const text = messageInput.value.trim();
   if (text && activeChannelId && currentUser) {
@@ -347,7 +344,7 @@ const handleSendMessage = (e: Event) => {
   }
 };
 
-const handleCreateServer = async (e: Event) => {
+const handleCreateServer = async (e) => {
     e.preventDefault();
     const serverName = serverNameInput.value.trim();
     if(serverName && currentUser) {
@@ -380,7 +377,7 @@ cancelAddServerButton.addEventListener('click', () => {
     serverNameInput.value = '';
 });
 // Close modal on outside click
-addServerModal.addEventListener('click', (e: MouseEvent) => {
+addServerModal.addEventListener('click', (e) => {
     if (e.target === addServerModal) {
         addServerModal.style.display = 'none';
         serverNameInput.value = '';
@@ -391,8 +388,3 @@ messageInput.addEventListener('input', () => {
     sendButton.disabled = !messageInput.value.trim();
 });
 sendButton.disabled = true; // Initially disable
-// FIX: This file is treated as a script when it has no imports or exports,
-// causing its declarations to be in the global scope. This conflicts with
-// declarations in other files (e.g., index.js). By adding an empty export,
-// we convert this file into a module, scoping its declarations locally.
-export {};
