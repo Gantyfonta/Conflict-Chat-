@@ -53,6 +53,16 @@ const serverNameInput = document.getElementById('server-name-input');
 const appErrorOverlay = document.getElementById('app-error-overlay');
 const appErrorMessage = document.getElementById('app-error-message');
 
+// Email Auth Elements
+const signupForm = document.getElementById('signup-form');
+const signinForm = document.getElementById('signin-form');
+const signupEmailInput = document.getElementById('signup-email');
+const signupPasswordInput = document.getElementById('signup-password');
+const signinEmailInput = document.getElementById('signin-email');
+const signinPasswordInput = document.getElementById('signin-password');
+const showSigninLink = document.getElementById('show-signin-link');
+const showSignupLink = document.getElementById('show-signup-link');
+
 
 // =================================================================================
 // App State
@@ -70,29 +80,41 @@ let usersUnsubscribe = () => {};
 auth.onAuthStateChanged(async (user) => {
   if (user) {
     try {
-      // Hide any previous errors on a new sign-in attempt
       appErrorOverlay.classList.add('hidden');
+      const userDocRef = db.collection('users').doc(user.uid);
+      const userDoc = await userDocRef.get();
 
-      // User is signed in.
-      currentUser = {
-        uid: user.uid,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-      };
-      // This is the first interaction with Firestore. If it fails, the user likely hasn't created the database.
-      await db.collection('users').doc(user.uid).set({
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        status: 'online',
-      }, { merge: true });
+      if (!userDoc.exists) {
+        // First-time sign-in for this user, create their profile
+        const displayName = user.displayName || user.email.split('@')[0];
+        const photoURL = user.photoURL || `https://picsum.photos/seed/${user.uid}/64/64`;
 
+        // If the user was created via email/pass, their Auth profile might be missing details.
+        // Let's update it for consistency across the app.
+        if (!user.displayName || !user.photoURL) {
+          await user.updateProfile({ displayName, photoURL });
+        }
+
+        // Create the user document in Firestore
+        await userDocRef.set({
+          displayName,
+          photoURL,
+          status: 'online',
+        });
+        currentUser = { uid: user.uid, displayName, photoURL };
+      } else {
+        // Existing user is signing in
+        await userDocRef.update({ status: 'online' });
+        const userData = userDoc.data();
+        currentUser = { uid: user.uid, displayName: userData.displayName, photoURL: userData.photoURL };
+      }
+      
       loginView.classList.add('hidden');
       appView.classList.remove('hidden');
       renderUserInfo();
       loadServers();
     } catch (error) {
         console.error("Firestore connection error:", error);
-        // Show the main app view but cover it with an error overlay
         loginView.classList.add('hidden');
         appView.classList.remove('hidden');
         appErrorMessage.textContent = 'Failed to connect to the database. Please ensure Cloud Firestore has been created in your Firebase project console and the security rules are correctly configured.';
@@ -100,41 +122,94 @@ auth.onAuthStateChanged(async (user) => {
     }
   } else {
     // User is signed out.
+    if (currentUser) {
+        // Set user status to offline when they sign out
+        db.collection('users').doc(currentUser.uid).update({ status: 'offline' }).catch(e => console.error("Failed to update status on logout", e));
+    }
     currentUser = null;
     loginView.classList.remove('hidden');
     appView.classList.add('hidden');
-     // Ensure error overlay is hidden on logout
     appErrorOverlay.classList.add('hidden');
   }
 });
 
-const signIn = () => {
-    // Hide previous errors
-    if (loginErrorContainer) {
-        loginErrorContainer.classList.add('hidden');
-        loginErrorContainer.textContent = '';
-    }
+const showLoginError = (message) => {
+    loginErrorContainer.textContent = message;
+    loginErrorContainer.classList.remove('hidden');
+};
 
+const clearLoginError = () => {
+    loginErrorContainer.textContent = '';
+    loginErrorContainer.classList.add('hidden');
+};
+
+const signInWithGoogle = () => {
+    clearLoginError();
     auth.signInWithPopup(provider).catch((error) => {
-        console.error("Sign in error", error);
-        if (loginErrorContainer) {
-            let message = "An unknown error occurred. Please try again.";
-            switch (error.code) {
-                case 'auth/operation-not-supported-in-this-environment':
-                    message = 'Sign-in is not supported here. Ensure you are running from a web server (not a local file) and that popups are enabled.';
-                    break;
-                case 'auth/popup-closed-by-user':
-                    message = 'Sign-in cancelled. The popup was closed before completion.';
-                    break;
-                case 'auth/cancelled-popup-request':
-                    message = 'Sign-in cancelled because another popup was opened.';
-                    break;
-            }
-            loginErrorContainer.textContent = message;
-            loginErrorContainer.classList.remove('hidden');
+        let message = "An unknown error occurred during Google sign-in.";
+        switch (error.code) {
+            case 'auth/popup-closed-by-user':
+                message = 'Sign-in cancelled. The popup was closed before completion.';
+                break;
+            case 'auth/cancelled-popup-request':
+                message = 'Sign-in cancelled because another popup was opened.';
+                break;
         }
+        showLoginError(message);
     });
 };
+
+const handleSignUp = async (e) => {
+    e.preventDefault();
+    clearLoginError();
+    const email = signupEmailInput.value;
+    const password = signupPasswordInput.value;
+    try {
+        await auth.createUserWithEmailAndPassword(email, password);
+        // onAuthStateChanged will handle the rest.
+    } catch (error) {
+        let message = "An unknown error occurred during sign-up.";
+        switch (error.code) {
+            case 'auth/email-already-in-use':
+                message = 'An account with this email already exists. Please sign in instead.';
+                break;
+            case 'auth/invalid-email':
+                message = 'Please enter a valid email address.';
+                break;
+            case 'auth/weak-password':
+                message = 'Password should be at least 6 characters long.';
+                break;
+        }
+        showLoginError(message);
+    }
+};
+
+const handleSignIn = async (e) => {
+    e.preventDefault();
+    clearLoginError();
+    const email = signinEmailInput.value;
+    const password = signinPasswordInput.value;
+    try {
+        await auth.signInWithEmailAndPassword(email, password);
+        // onAuthStateChanged will handle the rest.
+    } catch (error) {
+        let message = "An unknown error occurred during sign-in.";
+        switch(error.code) {
+            case 'auth/user-not-found':
+                message = 'No account found with this email. Please sign up first.';
+                break;
+            case 'auth/wrong-password':
+                message = 'Incorrect password. Please try again.';
+                break;
+            case 'auth/invalid-email':
+                message = 'Please enter a valid email address.';
+                break;
+        }
+        showLoginError(message);
+    }
+};
+
+
 const signOut = () => auth.signOut().catch((error) => console.error("Sign out error", error));
 
 // =================================================================================
@@ -284,8 +359,10 @@ const selectServer = (serverId) => {
   
   channelListPanel.style.display = 'flex';
   placeholderView.innerHTML = `
-    <h2 class="text-2xl font-bold">Select a channel</h2>
-    <p class="mt-2">Pick a channel to see the conversation.</p>
+    <div class="text-center text-gray-400">
+        <h2 class="text-2xl font-bold">Select a channel</h2>
+        <p class="mt-2">Pick a channel to see the conversation.</p>
+    </div>
   `;
   placeholderView.style.display = 'flex';
   chatView.style.display = 'none';
@@ -385,10 +462,28 @@ const handleCreateServer = async (e) => {
 // =================================================================================
 // Event Listeners
 // =================================================================================
-loginButton.addEventListener('click', signIn);
+loginButton.addEventListener('click', signInWithGoogle);
 logoutButton.addEventListener('click', signOut);
 messageForm.addEventListener('submit', handleSendMessage);
 addServerForm.addEventListener('submit', handleCreateServer);
+signupForm.addEventListener('submit', handleSignUp);
+signinForm.addEventListener('submit', handleSignIn);
+
+showSigninLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    signupForm.classList.add('hidden');
+    signinForm.classList.remove('hidden');
+    clearLoginError();
+});
+
+showSignupLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    signinForm.classList.add('hidden');
+    signupForm.classList.remove('hidden');
+    clearLoginError();
+});
+
+
 cancelAddServerButton.addEventListener('click', () => {
     addServerModal.style.display = 'none';
     serverNameInput.value = '';
@@ -405,3 +500,12 @@ messageInput.addEventListener('input', () => {
     sendButton.disabled = !messageInput.value.trim();
 });
 sendButton.disabled = true; // Initially disable
+
+// Set user offline when they close the tab
+window.addEventListener('beforeunload', () => {
+    if (currentUser) {
+        // Note: This is not guaranteed to run, but it's the best effort for this architecture.
+        // A more robust presence system would use Firestore's Realtime Database capabilities.
+        db.collection('users').doc(currentUser.uid).update({ status: 'offline' });
+    }
+});

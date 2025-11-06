@@ -43,19 +43,25 @@ const chatView = document.getElementById('chat-view');
 const chatHeader = document.getElementById('chat-header');
 const messageList = document.getElementById('message-list');
 const messageForm = document.getElementById('message-form');
-// FIX: Cast to HTMLInputElement to access properties like 'value' and 'placeholder'.
 const messageInput = document.getElementById('message-input') as HTMLInputElement;
-// FIX: Cast to HTMLButtonElement to access 'disabled' property.
 const sendButton = document.getElementById('send-button') as HTMLButtonElement;
 const userListAside = document.getElementById('user-list-aside');
 const addServerModal = document.getElementById('add-server-modal');
 const addServerForm = document.getElementById('add-server-form');
 const cancelAddServerButton = document.getElementById('cancel-add-server');
-// FIX: Cast to HTMLInputElement to access 'value' property.
 const serverNameInput = document.getElementById('server-name-input') as HTMLInputElement;
 const appErrorOverlay = document.getElementById('app-error-overlay');
 const appErrorMessage = document.getElementById('app-error-message');
 
+// Email Auth Elements
+const signupForm = document.getElementById('signup-form') as HTMLFormElement;
+const signinForm = document.getElementById('signin-form') as HTMLFormElement;
+const signupEmailInput = document.getElementById('signup-email') as HTMLInputElement;
+const signupPasswordInput = document.getElementById('signup-password') as HTMLInputElement;
+const signinEmailInput = document.getElementById('signin-email') as HTMLInputElement;
+const signinPasswordInput = document.getElementById('signin-password') as HTMLInputElement;
+const showSigninLink = document.getElementById('show-signin-link');
+const showSignupLink = document.getElementById('show-signup-link');
 
 // =================================================================================
 // App State
@@ -73,25 +79,33 @@ let usersUnsubscribe = () => {};
 auth.onAuthStateChanged(async (user: any) => {
   if (user) {
     try {
-        // User is signed in.
-        // Hide any previous errors
         appErrorOverlay.classList.add('hidden');
+        const userDocRef = db.collection('users').doc(user.uid);
+        const userDoc = await userDocRef.get();
 
-        currentUser = {
-          uid: user.uid,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-        };
-        await db.collection('users').doc(user.uid).set({
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          status: 'online',
-        }, { merge: true });
+        if (!userDoc.exists) {
+            // First-time sign-in, create user profile
+            const displayName = user.displayName || user.email.split('@')[0];
+            const photoURL = user.photoURL || `https://picsum.photos/seed/${user.uid}/64/64`;
 
+            if (!user.displayName || !user.photoURL) {
+                await user.updateProfile({ displayName, photoURL });
+            }
+            
+            await userDocRef.set({ displayName, photoURL, status: 'online' });
+            currentUser = { uid: user.uid, displayName, photoURL };
+        } else {
+            // Existing user
+            await userDocRef.update({ status: 'online' });
+            const userData = userDoc.data();
+            currentUser = { uid: user.uid, displayName: userData.displayName, photoURL: userData.photoURL };
+        }
+        
         loginView.classList.add('hidden');
         appView.classList.remove('hidden');
         renderUserInfo();
         loadServers();
+
     } catch (error) {
         console.error("Firestore Error:", error);
         loginView.classList.add('hidden');
@@ -100,44 +114,99 @@ auth.onAuthStateChanged(async (user: any) => {
             appErrorMessage.textContent = 'Failed to connect to the database. Please ensure Cloud Firestore has been created in your Firebase project console and the security rules are correctly configured.';
         }
         if (appErrorOverlay) {
-            appErrorOverlay.style.display = 'flex';
+            appErrorOverlay.classList.remove('hidden');
         }
     }
   } else {
     // User is signed out.
+    if (currentUser) {
+        db.collection('users').doc(currentUser.uid).update({ status: 'offline' }).catch((e: any) => console.error("Failed to update status on logout", e));
+    }
     currentUser = null;
     loginView.classList.remove('hidden');
     appView.classList.add('hidden');
+    appErrorOverlay.classList.add('hidden');
   }
 });
 
-const signIn = () => {
-    // Hide previous errors
+const showLoginError = (message: string) => {
     if (loginErrorContainer) {
-        loginErrorContainer.classList.add('hidden');
-        loginErrorContainer.textContent = '';
+        loginErrorContainer.textContent = message;
+        loginErrorContainer.classList.remove('hidden');
     }
+};
 
+const clearLoginError = () => {
+    if (loginErrorContainer) {
+        loginErrorContainer.textContent = '';
+        loginErrorContainer.classList.add('hidden');
+    }
+};
+
+const signInWithGoogle = () => {
+    clearLoginError();
     auth.signInWithPopup(provider).catch((error: any) => {
-        console.error("Sign in error", error);
-        if (loginErrorContainer) {
-            let message = "An unknown error occurred. Please try again.";
-            switch (error.code) {
-                case 'auth/operation-not-supported-in-this-environment':
-                    message = 'Sign-in is not supported here. Ensure you are running from a web server (not a local file) and that popups are enabled.';
-                    break;
-                case 'auth/popup-closed-by-user':
-                    message = 'Sign-in cancelled. The popup was closed before completion.';
-                    break;
-                case 'auth/cancelled-popup-request':
-                    message = 'Sign-in cancelled because another popup was opened.';
-                    break;
-            }
-            loginErrorContainer.textContent = message;
-            loginErrorContainer.classList.remove('hidden');
+        let message = "An unknown error occurred during Google sign-in.";
+        switch (error.code) {
+            case 'auth/popup-closed-by-user':
+                message = 'Sign-in cancelled. The popup was closed before completion.';
+                break;
+            case 'auth/cancelled-popup-request':
+                message = 'Sign-in cancelled because another popup was opened.';
+                break;
         }
+        showLoginError(message);
     });
 };
+
+const handleSignUp = async (e: Event) => {
+    e.preventDefault();
+    clearLoginError();
+    const email = signupEmailInput.value;
+    const password = signupPasswordInput.value;
+    try {
+        await auth.createUserWithEmailAndPassword(email, password);
+    } catch (error: any) {
+        let message = "An unknown error occurred during sign-up.";
+        switch (error.code) {
+            case 'auth/email-already-in-use':
+                message = 'An account with this email already exists. Please sign in instead.';
+                break;
+            case 'auth/invalid-email':
+                message = 'Please enter a valid email address.';
+                break;
+            case 'auth/weak-password':
+                message = 'Password should be at least 6 characters long.';
+                break;
+        }
+        showLoginError(message);
+    }
+};
+
+const handleSignIn = async (e: Event) => {
+    e.preventDefault();
+    clearLoginError();
+    const email = signinEmailInput.value;
+    const password = signinPasswordInput.value;
+    try {
+        await auth.signInWithEmailAndPassword(email, password);
+    } catch (error: any) {
+        let message = "An unknown error occurred during sign-in.";
+        switch(error.code) {
+            case 'auth/user-not-found':
+                message = 'No account found with this email. Please sign up first.';
+                break;
+            case 'auth/wrong-password':
+                message = 'Incorrect password. Please try again.';
+                break;
+            case 'auth/invalid-email':
+                message = 'Please enter a valid email address.';
+                break;
+        }
+        showLoginError(message);
+    }
+};
+
 const signOut = () => auth.signOut().catch((error: any) => console.error("Sign out error", error));
 
 // =================================================================================
@@ -287,8 +356,10 @@ const selectServer = (serverId: string) => {
   
   channelListPanel.style.display = 'flex';
   placeholderView.innerHTML = `
-    <h2 class="text-2xl font-bold">Select a channel</h2>
-    <p class="mt-2">Pick a channel to see the conversation.</p>
+    <div class="text-center text-gray-400">
+        <h2 class="text-2xl font-bold">Select a channel</h2>
+        <p class="mt-2">Pick a channel to see the conversation.</p>
+    </div>
   `;
   placeholderView.style.display = 'flex';
   chatView.style.display = 'none';
@@ -388,10 +459,27 @@ const handleCreateServer = async (e: Event) => {
 // =================================================================================
 // Event Listeners
 // =================================================================================
-loginButton.addEventListener('click', signIn);
+loginButton.addEventListener('click', signInWithGoogle);
 logoutButton.addEventListener('click', signOut);
 messageForm.addEventListener('submit', handleSendMessage);
 addServerForm.addEventListener('submit', handleCreateServer);
+signupForm.addEventListener('submit', handleSignUp);
+signinForm.addEventListener('submit', handleSignIn);
+
+showSigninLink.addEventListener('click', (e: Event) => {
+    e.preventDefault();
+    signupForm.classList.add('hidden');
+    signinForm.classList.remove('hidden');
+    clearLoginError();
+});
+
+showSignupLink.addEventListener('click', (e: Event) => {
+    e.preventDefault();
+    signinForm.classList.add('hidden');
+    signupForm.classList.remove('hidden');
+    clearLoginError();
+});
+
 cancelAddServerButton.addEventListener('click', () => {
     addServerModal.style.display = 'none';
     serverNameInput.value = '';
@@ -408,6 +496,12 @@ messageInput.addEventListener('input', () => {
     sendButton.disabled = !messageInput.value.trim();
 });
 sendButton.disabled = true; // Initially disable
+
+window.addEventListener('beforeunload', () => {
+    if (currentUser) {
+        db.collection('users').doc(currentUser.uid).update({ status: 'offline' });
+    }
+});
 // FIX: This file is treated as a script when it has no imports or exports,
 // causing its declarations to be in the global scope. This conflicts with
 // declarations in other files (e.g., index.js). By adding an empty export,
