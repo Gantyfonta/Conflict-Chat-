@@ -314,23 +314,52 @@ const renderMessages = (messages) => {
     const messageList = document.getElementById('message-list');
     if (!messageList) return;
 
-    messageList.innerHTML = '';
+    let lastMessageUid = null;
+    let lastMessageTimestamp = null;
+    const FIVE_MINUTES = 5 * 60 * 1000;
+
+    messageList.innerHTML = ''; // Clear existing messages
+
     messages.forEach(msg => {
         const messageEl = document.createElement('div');
-        messageEl.className = 'flex p-4 hover:bg-gray-800/50';
-        const timestamp = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'sending...';
-        messageEl.innerHTML = `
-            <img src="${msg.user.photoURL}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_SVG}';" alt="${msg.user.displayName}" class="w-10 h-10 rounded-full mr-4 mt-1" />
-            <div>
-                <div class="flex items-baseline">
-                    <span class="font-semibold text-white mr-2">${msg.user.displayName}</span>
-                    <span class="text-xs text-gray-500">${timestamp}</span>
-                </div>
+        const currentTimestamp = msg.timestamp ? msg.timestamp.toDate() : new Date();
+
+        // Check if this message should be grouped with the previous one
+        const shouldGroup = 
+            msg.user.uid === lastMessageUid &&
+            lastMessageTimestamp &&
+            (currentTimestamp - lastMessageTimestamp < FIVE_MINUTES);
+
+        if (shouldGroup) {
+            // Render a compact message (only the text and a hoverable timestamp)
+            messageEl.className = 'flex items-center pl-14 pr-4 py-0.5 hover:bg-gray-800/50 group';
+            messageEl.innerHTML = `
                 <p class="text-gray-200 whitespace-pre-wrap">${msg.text}</p>
-            </div>
-        `;
+                <span class="text-xs text-gray-500 ml-auto pl-4 opacity-0 group-hover:opacity-100 transition-opacity">${msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+            `;
+        } else {
+            // Render a full message with the user header
+            messageEl.className = 'flex p-4 hover:bg-gray-800/50 pt-6';
+            const timestamp = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'sending...';
+            messageEl.innerHTML = `
+                <img src="${msg.user.photoURL}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_SVG}';" alt="${msg.user.displayName}" class="w-10 h-10 rounded-full mr-4" />
+                <div>
+                    <div class="flex items-baseline">
+                        <span class="font-semibold text-white mr-2">${msg.user.displayName}</span>
+                        <span class="text-xs text-gray-500">${timestamp}</span>
+                    </div>
+                    <p class="text-gray-200 whitespace-pre-wrap">${msg.text}</p>
+                </div>
+            `;
+        }
+        
         messageList.appendChild(messageEl);
+
+        // Update last message details for the next iteration
+        lastMessageUid = msg.user.uid;
+        lastMessageTimestamp = currentTimestamp;
     });
+
     messageList.scrollTop = messageList.scrollHeight;
 };
 
