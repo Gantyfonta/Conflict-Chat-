@@ -22,6 +22,7 @@ if (!firebase.apps.length) {
 }
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 const provider = new firebase.auth.GoogleAuthProvider();
 
 // =================================================================================
@@ -45,6 +46,7 @@ let currentUser = null;
 let activeView = 'servers'; // 'servers' or 'home'
 let activeServerId = null;
 let activeChannelId = null; // Can be a server channel ID or a DM channel ID
+let stagedFile = null;
 let messageUnsubscribe = () => {};
 let channelUnsubscribe = () => {};
 let usersUnsubscribe = () => {};
@@ -334,6 +336,7 @@ const renderMessages = (messages) => {
         // Check if this message should be grouped with the previous one
         const shouldGroup = 
             msg.user.uid === lastMessageUid &&
+            !msg.imageUrl &&
             lastMessageTimestamp &&
             (currentTimestamp - lastMessageTimestamp < FIVE_MINUTES);
 
@@ -355,7 +358,8 @@ const renderMessages = (messages) => {
                         <span class="font-semibold text-white mr-2 cursor-pointer" data-userid="${msg.user.uid}">${msg.user.displayName}</span>
                         <span class="text-xs text-gray-500">${timestamp}</span>
                     </div>
-                    <p class="text-gray-200 whitespace-pre-wrap break-words">${msg.text}</p>
+                    ${msg.text ? `<p class="text-gray-200 whitespace-pre-wrap break-words">${msg.text}</p>` : ''}
+                    ${msg.imageUrl ? `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer" class="block mt-2"><img src="${msg.imageUrl}" alt="Uploaded content" class="rounded-lg max-w-xs max-h-64 object-cover"></a>` : ''}
                 </div>
             `;
         }
@@ -631,28 +635,58 @@ const selectDmChannel = (friend) => {
 };
 
 
-const handleSendMessage = (e) => {
+const handleSendMessage = async (e) => {
   e.preventDefault();
   const messageInput = document.getElementById('message-input');
+  const sendButton = document.getElementById('send-button');
   const text = messageInput.value.trim();
-  if (text && currentUser) {
-      const messageData = {
-          text: text,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-          user: {
-              uid: currentUser.uid,
-              displayName: currentUser.displayName,
-              photoURL: currentUser.photoURL,
-          }
-      };
-      
-      if (activeView === 'servers' && activeServerId && activeChannelId) {
-          db.collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId).collection('messages').add(messageData);
-      } else if (activeView === 'home' && activeChannelId) {
-          db.collection('dms').doc(activeChannelId).collection('messages').add(messageData);
-      }
-      messageInput.value = '';
+  
+  if ((!text && !stagedFile) || !currentUser) return;
+
+  sendButton.disabled = true;
+
+  let imageUrl = null;
+
+  if (stagedFile) {
+    try {
+        const filePath = `chat-images/${currentUser.uid}/${Date.now()}_${stagedFile.name}`;
+        const fileRef = storage.ref(filePath);
+        const uploadTask = await fileRef.put(stagedFile);
+        imageUrl = await uploadTask.ref.getDownloadURL();
+    } catch (error) {
+        console.error("Error uploading image:", error);
+        alert("Failed to upload image. Please try again.");
+        sendButton.disabled = false;
+        return;
+    }
   }
+
+  const messageData = {
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      user: {
+          uid: currentUser.uid,
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL,
+      }
+  };
+
+  if (text) {
+      messageData.text = text;
+  }
+  if (imageUrl) {
+      messageData.imageUrl = imageUrl;
+  }
+  
+  if (activeView === 'servers' && activeServerId && activeChannelId) {
+      db.collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId).collection('messages').add(messageData);
+  } else if (activeView === 'home' && activeChannelId) {
+      db.collection('dms').doc(activeChannelId).collection('messages').add(messageData);
+  }
+
+  // Reset input and preview
+  messageInput.value = '';
+  cancelImagePreview();
+  sendButton.disabled = true;
 };
 
 const handleCreateServer = async (e) => {
@@ -856,6 +890,46 @@ const showUserProfile = async (userId) => {
 };
 
 // =================================================================================
+// Image Handling
+// =================================================================================
+
+const handleImageFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    
+    stagedFile = file;
+    const imagePreviewContainer = document.getElementById('image-preview-container');
+    const imagePreview = document.getElementById('image-preview');
+    const sendButton = document.getElementById('send-button');
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        imagePreview.src = event.target.result;
+        imagePreviewContainer.classList.remove('hidden');
+        if (sendButton) sendButton.disabled = false;
+    };
+    reader.readAsDataURL(file);
+};
+
+const cancelImagePreview = () => {
+    const imageUploadInput = document.getElementById('image-upload-input');
+    const imagePreviewContainer = document.getElementById('image-preview-container');
+    const imagePreview = document.getElementById('image-preview');
+    const messageInput = document.getElementById('message-input');
+    const sendButton = document.getElementById('send-button');
+
+    stagedFile = null;
+    if (imageUploadInput) imageUploadInput.value = ''; // Reset file input
+    if (imagePreview) imagePreview.src = '';
+    if (imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
+    // Disable send button only if there's no text
+    if (sendButton && messageInput && !messageInput.value.trim()) {
+        sendButton.disabled = true;
+    }
+};
+
+
+// =================================================================================
 // Settings and Theming
 // =================================================================================
 
@@ -916,6 +990,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const userListAside = document.getElementById('user-list-aside');
     const friendList = document.getElementById('friend-list');
     const settingsModal = document.getElementById('settings-modal');
+    const attachFileButton = document.getElementById('attach-file-button');
+    const imageUploadInput = document.getElementById('image-upload-input');
+    const cancelImagePreviewButton = document.getElementById('cancel-image-preview');
 
 
     // Attach event listeners, with checks to prevent errors if an element is missing
@@ -928,6 +1005,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (leaveServerButton) leaveServerButton.addEventListener('click', handleLeaveServer);
     if (addFriendForm) addFriendForm.addEventListener('submit', handleAddFriend);
     if (profileForm) profileForm.addEventListener('submit', handleUpdateProfile);
+    if (attachFileButton) attachFileButton.addEventListener('click', () => imageUploadInput.click());
+    if (imageUploadInput) imageUploadInput.addEventListener('change', handleImageFileSelect);
+    if (cancelImagePreviewButton) cancelImagePreviewButton.addEventListener('click', cancelImagePreview);
 
     document.querySelectorAll('.signout-button').forEach(button => {
         button.addEventListener('click', signOut);
@@ -1056,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (messageInput) messageInput.addEventListener('input', () => {
-        if (sendButton) sendButton.disabled = !messageInput.value.trim();
+        if (sendButton) sendButton.disabled = !messageInput.value.trim() && !stagedFile;
     });
     if (sendButton) sendButton.disabled = true;
 
