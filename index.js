@@ -360,7 +360,13 @@ const renderMessages = (messages) => {
         lastMessageTimestamp = currentTimestamp;
     });
 
-    messageList.scrollTop = messageList.scrollHeight;
+    // The timeout ensures this runs after the DOM has been updated and rendered,
+    // giving a more accurate scrollHeight, especially if messages contain images.
+    setTimeout(() => {
+        if (messageList) {
+            messageList.scrollTop = messageList.scrollHeight;
+        }
+    }, 0);
 };
 
 const renderUsers = (users) => {
