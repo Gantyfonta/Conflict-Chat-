@@ -1,11 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gemini Chat Room</title>
+    <title>Conflict Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -28,19 +27,121 @@
         }
       }
     </script>
+    <!-- Firebase SDKs (using compat libraries for easier syntax) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
   <script type="importmap">
 {
   "imports": {
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0"
+    "react": "https://aistudiocdn.com/react@^19.2.0"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-900 text-gray-100">
-    <div id="root"></div>
+  <body class="bg-gray-900 text-gray-100 font-sans">
+
+    <!-- Login View -->
+    <div id="login-view" class="flex items-center justify-center h-screen bg-gray-800">
+      <div class="w-full max-w-sm p-8 space-y-6 bg-gray-700 rounded-lg shadow-lg text-center">
+        <div>
+          <h1 class="text-4xl font-bold text-white tracking-wider">Conflict</h1>
+          <p class="mt-2 text-gray-400">Real-time chat with Firebase.</p>
+        </div>
+        <div id="login-error-container" class="hidden text-sm text-red-300 bg-red-900/50 p-3 rounded-md">
+          <!-- Error messages will be inserted here by JS -->
+        </div>
+        <button
+          id="login-button"
+          class="w-full flex items-center justify-center px-4 py-3 font-semibold text-gray-800 bg-white rounded-lg shadow-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-white transition duration-300 ease-in-out"
+        >
+          <svg class="w-6 h-6 mr-3" viewBox="0 0 48 48">
+            <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.222 0-9.582-3.651-11.181-8.584l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.021 35.596 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"></path>
+          </svg>
+          <span>Sign in with Google</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main App View -->
+    <div id="app-view" class="hidden h-screen flex">
+      <!-- Server List -->
+      <div id="server-list" class="w-20 bg-gray-900 p-3 flex flex-col items-center space-y-0 overflow-y-auto">
+        <!-- Server icons rendered by JS -->
+      </div>
+
+      <!-- Channel List Panel -->
+      <div id="channel-list-panel" class="w-64 bg-gray-800 flex-col hidden">
+        <header id="server-name-header" class="px-4 h-12 flex items-center shadow-md font-bold text-lg border-b border-gray-900/50 truncate">
+          <!-- Server name rendered by JS -->
+        </header>
+        <nav id="channel-list" class="flex-1 p-2 space-y-1 overflow-y-auto">
+          <!-- Channels rendered by JS -->
+        </nav>
+        <footer class="h-14 bg-gray-900/50 p-2 flex items-center justify-between">
+          <div id="user-info-panel" class="flex items-center truncate">
+            <!-- User info rendered by JS -->
+          </div>
+          <div class="flex items-center space-x-2 text-gray-400">
+            <button id="logout-button" class="hover:text-white" title="Logout">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+            </button>
+          </div>
+        </footer>
+      </div>
+
+      <!-- Chat Panel -->
+      <div id="chat-panel" class="flex-1 flex flex-col bg-gray-700">
+        <div id="placeholder-view" class="flex-1 flex items-center justify-center">
+            <div class="text-center text-gray-400">
+                <h2 class="text-2xl font-bold">Select a server</h2>
+                <p class="mt-2">Choose a server from the list to get started.</p>
+            </div>
+        </div>
+        <div id="chat-view" class="hidden flex-1 flex-col">
+          <header id="chat-header" class="h-12 flex items-center px-4 shadow-md border-b border-gray-900/50">
+            <!-- Channel name rendered by JS -->
+          </header>
+          <main class="flex-1 flex overflow-hidden">
+            <div class="flex-1 flex flex-col">
+              <div id="message-list" class="flex-1 p-2 overflow-y-auto">
+                <!-- Messages rendered by JS -->
+              </div>
+              <div class="px-4 pb-4">
+                <form id="message-form" class="bg-gray-600 rounded-lg flex items-center px-4">
+                  <input id="message-input" type="text" placeholder="Message #general" class="flex-1 bg-transparent py-3 text-white placeholder-gray-400 focus:outline-none" autocomplete="off" />
+                  <button type="submit" id="send-button" class="text-blue-400 hover:text-blue-300 disabled:text-gray-500 disabled:cursor-not-allowed">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+                  </button>
+                </form>
+              </div>
+            </div>
+            <aside id="user-list-aside" class="w-64 bg-gray-800 p-2 overflow-y-auto">
+              <!-- User list rendered by JS -->
+            </aside>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Server Modal -->
+    <div id="add-server-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center">
+        <div class="bg-gray-700 rounded-lg p-6 w-full max-w-md" >
+            <h2 class="text-2xl font-bold text-center mb-4">Create a Server</h2>
+            <form id="add-server-form">
+                <div class="mb-4">
+                    <label for="server-name-input" class="text-xs font-bold uppercase text-gray-400">Server Name</label>
+                    <input id="server-name-input" type="text" class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                </div>
+                <div class="bg-gray-800 p-4 rounded-md flex justify-end space-x-4">
+                     <button type="button" id="cancel-add-server" class="text-gray-300 hover:text-white">Cancel</button>
+                     <button type="submit" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-md font-semibold">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
