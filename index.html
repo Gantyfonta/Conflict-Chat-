@@ -6,21 +6,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Conflict Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --color-gray-900: #202225;
+            --color-gray-800: #2f3136;
+            --color-gray-700: #36393f;
+            --color-gray-600: #4f545c;
+            --color-gray-500: #72767d;
+            --color-gray-400: #b9bbbe;
+            --color-gray-300: #dcddde;
+            --color-gray-200: #e3e5e8;
+            --color-gray-100: #f2f3f5;
+            --color-text-primary: #f2f3f5;
+            --color-text-secondary: #b9bbbe;
+            --color-text-muted: #72767d;
+            --color-text-link: #5865f2;
+            --color-bg-input: #40444b;
+            --color-bg-button: #5865f2;
+            --color-bg-button-hover: #4752c4;
+        }
+
+        body.theme-light {
+            --color-gray-900: #f2f3f5;
+            --color-gray-800: #ffffff;
+            --color-gray-700: #ebedef;
+            --color-gray-600: #e3e5e8;
+            --color-gray-500: #747f8d;
+            --color-gray-400: #4f5660;
+            --color-gray-300: #2e3338;
+            --color-gray-200: #202225;
+            --color-gray-100: #060607;
+            --color-text-primary: #060607;
+            --color-text-secondary: #4f5660;
+            --color-text-muted: #747f8d;
+            --color-text-link: #0067e0;
+            --color-bg-input: #e3e5e8;
+            --color-bg-button: #0067e0;
+            --color-bg-button-hover: #0056ba;
+        }
+    </style>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              'gray-900': '#202225',
-              'gray-800': '#2f3136',
-              'gray-700': '#36393f',
-              'gray-600': '#4f545c',
-              'gray-500': '#72767d',
-              'gray-400': '#b9bbbe',
-              'gray-300': '#dcddde',
-              'gray-200': '#e3e5e8',
-              'gray-100': '#f2f3f5',
-              'blue-500': '#5865f2',
+              'gray-900': 'var(--color-gray-900)',
+              'gray-800': 'var(--color-gray-800)',
+              'gray-700': 'var(--color-gray-700)',
+              'gray-600': 'var(--color-gray-600)',
+              'gray-500': 'var(--color-gray-500)',
+              'gray-400': 'var(--color-gray-400)',
+              'gray-300': 'var(--color-gray-300)',
+              'gray-200': 'var(--color-gray-200)',
+              'gray-100': 'var(--color-gray-100)',
+              'blue-500': 'var(--color-bg-button)',
               'green-500': '#57f287',
             }
           }
@@ -140,9 +179,19 @@
           <!-- Friends rendered by JS -->
         </nav>
         <footer class="h-14 bg-gray-900/50 p-2 flex items-center justify-between">
-          <button id="user-info-panel-home" class="flex items-center truncate text-left hover:bg-gray-700/50 p-1 rounded-md w-full">
-            <!-- User info rendered by JS -->
-          </button>
+            <button class="user-info-panel flex items-center truncate text-left hover:bg-gray-700/50 p-1 rounded-md flex-1">
+                <!-- User info rendered by JS -->
+            </button>
+            <div class="flex items-center space-x-1 ml-2">
+                 <button class="signout-button relative group p-2 rounded-md hover:bg-gray-700/50">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Sign Out</span>
+                 </button>
+                 <button class="settings-button relative group p-2 rounded-md hover:bg-gray-700/50">
+                    <svg class="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path></svg>
+                     <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Settings</span>
+                 </button>
+            </div>
         </footer>
       </div>
 
@@ -166,9 +215,19 @@
           <!-- Channels rendered by JS -->
         </nav>
         <footer class="h-14 bg-gray-900/50 p-2 flex items-center justify-between">
-          <button id="user-info-panel" class="flex items-center truncate text-left hover:bg-gray-700/50 p-1 rounded-md w-full">
-            <!-- User info rendered by JS -->
-          </button>
+            <button class="user-info-panel flex items-center truncate text-left hover:bg-gray-700/50 p-1 rounded-md flex-1">
+                <!-- User info rendered by JS -->
+            </button>
+            <div class="flex items-center space-x-1 ml-2">
+                 <button class="signout-button relative group p-2 rounded-md hover:bg-gray-700/50">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Sign Out</span>
+                 </button>
+                 <button class="settings-button relative group p-2 rounded-md hover:bg-gray-700/50">
+                    <svg class="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path></svg>
+                     <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Settings</span>
+                 </button>
+            </div>
         </footer>
       </div>
 
@@ -191,6 +250,14 @@
               </div>
               <div class="px-4 pb-4 flex-shrink-0">
                 <form id="message-form" class="bg-gray-600 rounded-lg flex items-center px-4">
+                  <div class="relative">
+                    <button type="button" id="emoji-button" class="p-1 text-gray-400 hover:text-gray-200">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-.464 5.535a.5.5 0 00.707 0 5 5 0 00-6.486 0 .5.5 0 00.707.707A4 4 0 0110 12a4 4 0 012.536 1.243z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div id="emoji-picker" class="hidden absolute bottom-full mb-2 bg-gray-900 border border-gray-800 rounded-lg shadow-lg p-2 w-72 h-64 overflow-y-auto z-10 grid grid-cols-8 gap-1">
+                        <!-- Emojis will be populated by JS -->
+                    </div>
+                  </div>
                   <input id="message-input" type="text" placeholder="Message..." class="flex-1 bg-transparent py-3 text-white placeholder-gray-400 focus:outline-none" autocomplete="off" />
                   <button type="submit" id="send-button" class="text-blue-400 hover:text-blue-300 disabled:text-gray-500 disabled:cursor-not-allowed">
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
@@ -207,7 +274,7 @@
       
       <!-- Version Number -->
       <div class="absolute bottom-1 right-2 text-xs text-gray-500">
-          v1.9 <!-- Remember to update this version number! -->
+          v2.3 <!-- Remember to update this version number! -->
       </div>
 
 
@@ -237,32 +304,70 @@
         </div>
     </div>
     
-    <!-- User Profile Modal -->
-    <div id="profile-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center">
-        <div class="bg-gray-700 rounded-lg p-6 w-full max-w-md">
-            <h2 class="text-2xl font-bold text-center mb-6">My Profile</h2>
-            <form id="profile-form">
-                <div class="mb-4">
-                    <label for="profile-username-input" class="text-xs font-bold uppercase text-gray-400">Username</label>
-                    <input id="profile-username-input" type="text" class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center">
+        <div class="bg-gray-800 rounded-lg w-full max-w-4xl h-[600px] flex overflow-hidden shadow-xl">
+            <!-- Sidebar -->
+            <nav class="w-64 bg-gray-900 p-4 space-y-2 flex flex-col">
+                <div class="flex-1">
+                    <h3 class="px-2 text-xs font-bold uppercase text-gray-400">User Settings</h3>
+                    <button data-section="profile-section" class="settings-nav-button w-full text-left px-2 py-1.5 rounded-md bg-gray-700 text-white font-medium">My Profile</button>
+                    <button data-section="theme-section" class="settings-nav-button w-full text-left px-2 py-1.5 rounded-md text-gray-300 hover:bg-gray-700/50 hover:text-white">Appearance</button>
+                    <div class="border-t border-gray-700 mx-2 my-2"></div>
+                    <button class="signout-button w-full text-left px-2 py-1.5 rounded-md text-gray-300 hover:bg-gray-700/50 hover:text-white">Sign Out</button>
                 </div>
-                <div class="mb-4">
-                    <label for="profile-avatar-input" class="text-xs font-bold uppercase text-gray-400">Avatar URL</label>
-                    <input id="profile-avatar-input" type="url" class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div class="mb-6">
-                    <label class="text-xs font-bold uppercase text-gray-400">Friend Code (Your User ID)</label>
-                    <div class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-gray-400 select-all">
-                        <span id="friend-code-display"></span>
+            </nav>
+            <!-- Content -->
+            <div class="flex-1 flex flex-col bg-gray-700">
+                <main class="flex-1 p-8 overflow-y-auto">
+                    <!-- Profile Section -->
+                    <div id="profile-section" class="settings-section">
+                        <h2 class="text-2xl font-bold mb-6">My Profile</h2>
+                        <form id="profile-form">
+                            <div class="mb-4">
+                                <label for="profile-username-input" class="text-xs font-bold uppercase text-gray-400">Username</label>
+                                <input id="profile-username-input" type="text" class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                            </div>
+                            <div class="mb-4">
+                                <label for="profile-avatar-input" class="text-xs font-bold uppercase text-gray-400">Avatar URL</label>
+                                <input id="profile-avatar-input" type="url" class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                             <div class="mb-6">
+                                <label class="text-xs font-bold uppercase text-gray-400">Friend Code (Your User ID)</label>
+                                <div class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-gray-400 select-all">
+                                    <span id="friend-code-display"></span>
+                                </div>
+                            </div>
+                            <div class="mt-8 flex justify-end">
+                                <button type="submit" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-md font-semibold">Save Changes</button>
+                            </div>
+                        </form>
                     </div>
-                </div>
-                <div class="bg-gray-800 p-4 rounded-md flex justify-end space-x-4">
-                    <button type="button" id="cancel-profile-changes" class="text-gray-300 hover:text-white">Cancel</button>
-                    <button type="submit" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-md font-semibold">Save Changes</button>
-                </div>
-            </form>
+                    <!-- Theme Section -->
+                    <div id="theme-section" class="settings-section hidden">
+                         <h2 class="text-2xl font-bold mb-6">Appearance</h2>
+                         <h3 class="text-sm font-bold uppercase text-gray-400 mb-2">Color Theme</h3>
+                         <div class="grid grid-cols-2 gap-4">
+                            <button class="theme-option p-4 border-2 border-gray-600 rounded-lg text-left" data-theme="default">
+                                <div class="w-full h-16 bg-gray-900 rounded-md mb-2"></div>
+                                <h4 class="font-semibold">Dark</h4>
+                            </button>
+                            <button class="theme-option p-4 border-2 border-gray-600 rounded-lg text-left" data-theme="light">
+                                <div class="w-full h-16 bg-gray-100 border border-gray-300 rounded-md mb-2"></div>
+                                <h4 class="font-semibold text-gray-400">Light</h4>
+                            </button>
+                         </div>
+                    </div>
+                </main>
+                <footer class="p-4 flex justify-end bg-gray-800/50">
+                    <button id="close-settings-modal" class="w-10 h-10 flex items-center justify-center rounded-full border-2 border-gray-500 text-gray-500 hover:text-white hover:border-white transition-colors">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                </footer>
+            </div>
         </div>
     </div>
+
 
     <!-- Invite Modal -->
     <div id="invite-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center">
@@ -280,6 +385,24 @@
                      <button type="submit" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-md font-semibold">Send Invite</button>
                 </div>
             </form>
+        </div>
+    </div>
+    
+    <!-- User Profile Modal (for others) -->
+    <div id="user-profile-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center">
+        <div class="bg-gray-800 rounded-lg w-full max-w-sm text-center p-6 shadow-xl">
+            <div class="flex flex-col items-center">
+                <img id="user-profile-avatar" src="" alt="User Avatar" class="w-24 h-24 rounded-full mb-4 border-4 border-gray-700 object-cover">
+                <h2 id="user-profile-name" class="text-2xl font-bold text-white mb-2"></h2>
+            </div>
+            <div class="mt-4 bg-gray-900 p-3 rounded-md">
+                <label class="text-xs font-bold uppercase text-gray-400">Friend Code</label>
+                <div id="user-profile-friend-code" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 mt-1 text-gray-300 select-all font-mono">
+                </div>
+            </div>
+            <button id="close-user-profile-modal" class="mt-6 w-full px-4 py-2 font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 transition duration-300">
+                Close
+            </button>
         </div>
     </div>
 

@@ -28,6 +28,15 @@ const provider = new firebase.auth.GoogleAuthProvider();
 // Constants
 // =================================================================================
 const DEFAULT_AVATAR_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%2372767d'/%3E%3C/svg%3E";
+const EMOJIS = [
+  '😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊', '😋', '😎', '😍', '😘', '😗', '😙', '😚',
+  '🙂', '🤗', '🤔', '🤨', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯', '😪', '😫', '😴',
+  '😌', '😛', '😜', '😝', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞', '😟',
+  '😤', '😢', '😭', '😦', '😧', '😨', '😩', '🤯', '😬', '😰', '😱', '😳', '🤪', '😵', '😡', '😠', '🤬',
+  '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '😇', '🤠', '🤡', '🤥', '🤫', '🤭', '🧐', '🤓', '😈', '👿', '👹',
+  '👺', '💀', '👻', '👽', '🤖', '💩', '👍', '👎', '❤️', '🎉', '🔥', '💯', '🙏'
+];
+
 
 // =================================================================================
 // App State
@@ -190,8 +199,7 @@ const signOut = () => auth.signOut().catch((error) => console.error("Sign out er
 // =================================================================================
 const renderUserInfo = () => {
   if (!currentUser) return;
-  const userInfoPanel = document.getElementById('user-info-panel');
-  const userInfoPanelHome = document.getElementById('user-info-panel-home');
+  const userInfoPanels = document.querySelectorAll('.user-info-panel');
 
   const userInfoHTML = `
     <div class="relative mr-2">
@@ -203,8 +211,7 @@ const renderUserInfo = () => {
         <p class="text-xs text-gray-400">Online</p>
     </div>
   `;
-  if (userInfoPanel) userInfoPanel.innerHTML = userInfoHTML;
-  if (userInfoPanelHome) userInfoPanelHome.innerHTML = userInfoHTML;
+  userInfoPanels.forEach(panel => panel.innerHTML = userInfoHTML);
 };
 
 const renderServers = (servers) => {
@@ -300,10 +307,10 @@ const renderFriends = (friends) => {
         friendEl.className = `flex items-center w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
         friendEl.innerHTML = `
             <div class="relative mr-2">
-                <img src="${friend.photoURL}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_SVG}';" alt="${friend.displayName}" class="w-8 h-8 rounded-full" />
+                <img src="${friend.photoURL}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_SVG}';" alt="${friend.displayName}" class="w-8 h-8 rounded-full" data-userid="${friend.id}" />
                 <div class="absolute bottom-0 right-0 w-2.5 h-2.5 ${friend.status === 'online' ? 'bg-green-500' : 'bg-gray-500'} border-2 border-gray-800 rounded-full"></div>
             </div>
-            <span class="font-medium truncate">${friend.displayName}</span>
+            <span class="font-medium truncate" data-userid="${friend.id}">${friend.displayName}</span>
         `;
         friendEl.onclick = () => selectDmChannel(friend);
         friendList.appendChild(friendEl);
@@ -342,10 +349,10 @@ const renderMessages = (messages) => {
             messageEl.className = 'flex p-4 hover:bg-gray-800/50 pt-6';
             const timestamp = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'sending...';
             messageEl.innerHTML = `
-                <img src="${msg.user.photoURL}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_SVG}';" alt="${msg.user.displayName}" class="w-10 h-10 rounded-full mr-4" />
+                <img src="${msg.user.photoURL}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_SVG}';" alt="${msg.user.displayName}" class="w-10 h-10 rounded-full mr-4 cursor-pointer" data-userid="${msg.user.uid}" />
                 <div>
                     <div class="flex items-baseline">
-                        <span class="font-semibold text-white mr-2">${msg.user.displayName}</span>
+                        <span class="font-semibold text-white mr-2 cursor-pointer" data-userid="${msg.user.uid}">${msg.user.displayName}</span>
                         <span class="text-xs text-gray-500">${timestamp}</span>
                     </div>
                     <p class="text-gray-200 whitespace-pre-wrap break-words">${msg.text}</p>
@@ -376,9 +383,10 @@ const renderUsers = (users) => {
     userListAside.innerHTML = `<h3 class="text-xs font-bold uppercase text-gray-400 px-2 pt-2 pb-1">Members — ${users.length}</h3>`;
     users.forEach(user => {
         const userEl = document.createElement('div');
-        userEl.className = "flex items-center justify-between p-2 rounded-md";
+        userEl.className = "flex items-center p-2 rounded-md hover:bg-gray-700/50 cursor-pointer";
+        userEl.dataset.userid = user.id;
         userEl.innerHTML = `
-            <div class="flex items-center">
+            <div class="flex items-center pointer-events-none">
                 <div class="relative mr-3">
                     <img src="${user.photoURL}" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR_SVG}';" alt="${user.displayName}" class="w-8 h-8 rounded-full" />
                     <div class="absolute bottom-0 right-0 w-2.5 h-2.5 ${user.status === 'online' ? 'bg-green-500' : 'bg-gray-500'} border-2 border-gray-800 rounded-full"></div>
@@ -708,7 +716,7 @@ const handleUpdateProfile = async (e) => {
     e.preventDefault();
     const profileUsernameInput = document.getElementById('profile-username-input');
     const profileAvatarInput = document.getElementById('profile-avatar-input');
-    const profileModal = document.getElementById('profile-modal');
+    const settingsModal = document.getElementById('settings-modal');
 
     const newUsername = profileUsernameInput.value.trim();
     const newAvatarUrl = profileAvatarInput.value.trim();
@@ -731,7 +739,7 @@ const handleUpdateProfile = async (e) => {
         currentUser.photoURL = newAvatarUrl || currentUser.photoURL;
         renderUserInfo();
         
-        if (profileModal) profileModal.style.display = 'none';
+        if (settingsModal) settingsModal.style.display = 'none';
 
     } catch(error) {
         console.error("Error updating profile:", error);
@@ -822,10 +830,61 @@ const handleInviteFriend = async (e) => {
     }
 };
 
+const showUserProfile = async (userId) => {
+    if (!userId || userId === currentUser.uid) return;
+    const modal = document.getElementById('user-profile-modal');
+    const avatarEl = document.getElementById('user-profile-avatar');
+    const nameEl = document.getElementById('user-profile-name');
+    const friendCodeEl = document.getElementById('user-profile-friend-code');
+
+    if (!modal || !avatarEl || !nameEl || !friendCodeEl) return;
+
+    try {
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+            const userData = userDoc.data();
+            avatarEl.src = userData.photoURL || DEFAULT_AVATAR_SVG;
+            nameEl.textContent = `${userData.displayName}'s Profile`;
+            friendCodeEl.textContent = userId;
+            modal.style.display = 'flex';
+        } else {
+            console.warn("User not found:", userId);
+        }
+    } catch (error) {
+        console.error("Error fetching user profile:", error);
+    }
+};
+
+// =================================================================================
+// Settings and Theming
+// =================================================================================
+
+const applyTheme = (themeName) => {
+    document.body.className = ''; // Clear existing theme classes
+    if (themeName !== 'default') {
+        document.body.classList.add(`theme-${themeName}`);
+    }
+    localStorage.setItem('conflict-theme', themeName);
+
+    // Update active state on theme buttons
+    document.querySelectorAll('.theme-option').forEach(btn => {
+        if (btn.dataset.theme === themeName) {
+            btn.classList.add('border-blue-500');
+        } else {
+            btn.classList.remove('border-blue-500');
+        }
+    });
+};
+
+
 // =================================================================================
 // Event Listeners Setup
 // =================================================================================
 document.addEventListener('DOMContentLoaded', () => {
+    // Apply saved theme on load
+    const savedTheme = localStorage.getItem('conflict-theme') || 'default';
+    applyTheme(savedTheme);
+    
     // Get all DOM elements once the document is loaded
     const loginButton = document.getElementById('login-button');
     const messageForm = document.getElementById('message-form');
@@ -840,14 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelAddServerButton = document.getElementById('cancel-add-server');
     const addServerModal = document.getElementById('add-server-modal');
     const serverNameInput = document.getElementById('server-name-input');
-    const userInfoPanel = document.getElementById('user-info-panel');
-    const userInfoPanelHome = document.getElementById('user-info-panel-home');
-    const cancelProfileChangesButton = document.getElementById('cancel-profile-changes');
-    const profileModal = document.getElementById('profile-modal');
     const profileForm = document.getElementById('profile-form');
-    const profileUsernameInput = document.getElementById('profile-username-input');
-    const profileAvatarInput = document.getElementById('profile-avatar-input');
-    const friendCodeDisplay = document.getElementById('friend-code-display');
     const serverSettingsButton = document.getElementById('server-settings-button');
     const serverSettingsDropdown = document.getElementById('server-settings-dropdown');
     const inviteButton = document.getElementById('invite-button');
@@ -856,6 +908,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelInviteButton = document.getElementById('cancel-invite-button');
     const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-button');
+    const emojiButton = document.getElementById('emoji-button');
+    const emojiPicker = document.getElementById('emoji-picker');
+    const userProfileModal = document.getElementById('user-profile-modal');
+    const closeUserProfileModalButton = document.getElementById('close-user-profile-modal');
+    const messageList = document.getElementById('message-list');
+    const userListAside = document.getElementById('user-list-aside');
+    const friendList = document.getElementById('friend-list');
+    const settingsModal = document.getElementById('settings-modal');
+
 
     // Attach event listeners, with checks to prevent errors if an element is missing
     if (loginButton) loginButton.addEventListener('click', signInWithGoogle);
@@ -866,6 +927,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (inviteForm) inviteForm.addEventListener('submit', handleInviteFriend);
     if (leaveServerButton) leaveServerButton.addEventListener('click', handleLeaveServer);
     if (addFriendForm) addFriendForm.addEventListener('submit', handleAddFriend);
+    if (profileForm) profileForm.addEventListener('submit', handleUpdateProfile);
+
+    document.querySelectorAll('.signout-button').forEach(button => {
+        button.addEventListener('click', signOut);
+    });
 
     if (showSigninLink) showSigninLink.addEventListener('click', (e) => {
         e.preventDefault();
@@ -893,36 +959,79 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    const openProfileModal = () => {
-        if (!currentUser) return;
+    // Settings Modal Logic
+    const openSettingsModal = () => {
+        if (!currentUser || !settingsModal) return;
+        const profileUsernameInput = document.getElementById('profile-username-input');
+        const profileAvatarInput = document.getElementById('profile-avatar-input');
+        const friendCodeDisplay = document.getElementById('friend-code-display');
+
         if (profileUsernameInput) profileUsernameInput.value = currentUser.displayName;
         if (profileAvatarInput) profileAvatarInput.value = currentUser.photoURL;
         if (friendCodeDisplay) friendCodeDisplay.textContent = currentUser.uid;
-        if (profileModal) profileModal.style.display = 'flex';
+        
+        // Default to profile section
+        document.querySelectorAll('.settings-section').forEach(el => el.classList.add('hidden'));
+        document.getElementById('profile-section')?.classList.remove('hidden');
+        document.querySelectorAll('.settings-nav-button').forEach(btn => {
+            btn.classList.remove('bg-gray-700', 'text-white');
+            btn.classList.add('text-gray-300', 'hover:bg-gray-700/50', 'hover:text-white');
+        });
+        document.querySelector('.settings-nav-button[data-section="profile-section"]')?.classList.add('bg-gray-700', 'text-white');
+
+        settingsModal.style.display = 'flex';
     };
 
-    if (userInfoPanel) userInfoPanel.addEventListener('click', openProfileModal);
-    if (userInfoPanelHome) userInfoPanelHome.addEventListener('click', openProfileModal);
-
-    if (cancelProfileChangesButton) cancelProfileChangesButton.addEventListener('click', () => {
-        if (profileModal) profileModal.style.display = 'none';
+    document.querySelectorAll('.user-info-panel, .settings-button').forEach(button => {
+        button.addEventListener('click', openSettingsModal);
     });
 
-    if (profileModal) profileModal.addEventListener('click', (e) => {
-        if (e.target === profileModal) {
-            profileModal.style.display = 'none';
-        }
-    });
-    if (profileForm) profileForm.addEventListener('submit', handleUpdateProfile);
+    if (settingsModal) {
+        document.getElementById('close-settings-modal')?.addEventListener('click', () => {
+            settingsModal.style.display = 'none';
+        });
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.style.display = 'none';
+            }
+        });
+
+        // Navigation within settings modal
+        document.querySelectorAll('.settings-nav-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const sectionId = button.dataset.section;
+                if (!sectionId) return;
+
+                document.querySelectorAll('.settings-section').forEach(el => el.classList.add('hidden'));
+                document.getElementById(sectionId)?.classList.remove('hidden');
+
+                document.querySelectorAll('.settings-nav-button').forEach(btn => {
+                    btn.classList.remove('bg-gray-700', 'text-white');
+                    btn.classList.add('text-gray-300', 'hover:bg-gray-700/50', 'hover:text-white');
+                });
+                button.classList.add('bg-gray-700', 'text-white');
+            });
+        });
+
+        // Theme selection
+        document.querySelectorAll('.theme-option').forEach(button => {
+            button.addEventListener('click', () => {
+                applyTheme(button.dataset.theme);
+            });
+        });
+    }
 
     if (serverSettingsButton) serverSettingsButton.addEventListener('click', (e) => {
         e.stopPropagation();
         if (serverSettingsDropdown) serverSettingsDropdown.classList.toggle('hidden');
     });
 
-    document.addEventListener('click', () => {
+    document.addEventListener('click', (e) => {
         if (serverSettingsDropdown && !serverSettingsDropdown.classList.contains('hidden')) {
             serverSettingsDropdown.classList.add('hidden');
+        }
+        if (emojiPicker && !emojiPicker.classList.contains('hidden') && !emojiPicker.contains(e.target) && e.target !== emojiButton) {
+            emojiPicker.classList.add('hidden');
         }
     });
 
@@ -950,4 +1059,58 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sendButton) sendButton.disabled = !messageInput.value.trim();
     });
     if (sendButton) sendButton.disabled = true;
+
+    // Emoji Picker Logic
+    if (emojiButton && emojiPicker) {
+        EMOJIS.forEach(emoji => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'text-2xl p-1 rounded-md hover:bg-gray-700';
+            button.textContent = emoji;
+            button.onclick = () => {
+                if (messageInput) {
+                    messageInput.value += emoji;
+                    messageInput.focus();
+                }
+                if (sendButton) sendButton.disabled = !messageInput.value.trim();
+            };
+            emojiPicker.appendChild(button);
+        });
+
+        emojiButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            emojiPicker.classList.toggle('hidden');
+        });
+    }
+    
+    // Other User Profile Modal Logic
+    if (userProfileModal && closeUserProfileModalButton) {
+        closeUserProfileModalButton.addEventListener('click', () => {
+            userProfileModal.style.display = 'none';
+        });
+        userProfileModal.addEventListener('click', (e) => {
+            if (e.target === userProfileModal) {
+                userProfileModal.style.display = 'none';
+            }
+        });
+    }
+    
+    // Delegated event listener for opening user profiles
+    const handleProfileClick = (e) => {
+        let target = e.target;
+        while (target && target !== e.currentTarget) {
+            if (target.dataset.userid) {
+                e.preventDefault();
+                e.stopPropagation(); // Prevents friend button's DM navigation
+                showUserProfile(target.dataset.userid);
+                return; 
+            }
+            target = target.parentElement;
+        }
+    };
+    
+    if(messageList) messageList.addEventListener('click', handleProfileClick);
+    if(userListAside) userListAside.addEventListener('click', handleProfileClick);
+    if(friendList) friendList.addEventListener('click', handleProfileClick);
+
 });
