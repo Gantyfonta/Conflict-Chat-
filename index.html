@@ -269,15 +269,16 @@
                 <!-- Messages rendered by JS -->
               </div>
               <div class="px-4 pb-4 flex-shrink-0">
-                <!-- Image Preview Container -->
-                <div id="image-preview-container" class="hidden relative w-40 mb-2 p-2 bg-gray-800 rounded-lg">
-                    <img id="image-preview" src="" alt="Image preview" class="w-full h-auto rounded-md">
-                    <button id="cancel-image-preview" class="absolute top-0 right-0 -mt-2 -mr-2 w-6 h-6 bg-gray-600 rounded-full text-white flex items-center justify-center hover:bg-red-500">
+                <!-- File Preview Container -->
+                <div id="file-preview-container" class="hidden items-center mb-2 p-2 bg-gray-800 rounded-lg">
+                    <svg class="w-8 h-8 text-gray-400 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path></svg>
+                    <span id="file-preview-name" class="text-sm text-gray-200 truncate flex-1"></span>
+                    <button id="cancel-file-preview" class="ml-2 w-6 h-6 bg-gray-600 rounded-full text-white flex items-center justify-center hover:bg-red-500 flex-shrink-0">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
                 <form id="message-form" class="bg-gray-600 rounded-lg flex items-center px-4">
-                  <input type="file" id="image-upload-input" class="hidden" accept="image/*">
+                  <input type="file" id="file-upload-input" class="hidden" accept=".txt, text/plain">
                   <button type="button" id="attach-file-button" class="p-1 mr-2 text-gray-400 hover:text-gray-200">
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"></path></svg>
                   </button>

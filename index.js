@@ -496,6 +496,28 @@ const isValidHttpUrl = (string) => {
     }
 };
 
+function escapeHTML(str) {
+    if (!str) return '';
+    return str.replace(/[&<>"']/g, function(match) {
+        return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[match];
+    });
+}
+
+function formatMessageText(text) {
+    let escapedText = escapeHTML(text);
+    const codeBlockRegex = /```txt\n([\s\S]*?)\n```/g;
+    return escapedText.replace(codeBlockRegex, (match, codeContent) => {
+        return `<pre class="bg-gray-900 p-2 rounded-md text-sm text-gray-300 whitespace-pre-wrap break-all mt-2"><code>${codeContent}</code></pre>`;
+    });
+}
+
+
 const renderUserInfo = () => {
   if (!currentUser) return;
   const userInfoPanels = document.querySelectorAll('.user-info-panel');
@@ -648,15 +670,14 @@ const renderMessages = (messages) => {
         // Check if this message should be grouped with the previous one
         const shouldGroup = 
             msg.user.uid === lastMessageUid &&
-            !msg.imageUrl &&
             lastMessageTimestamp &&
             (currentTimestamp - lastMessageTimestamp < FIVE_MINUTES);
 
         if (shouldGroup) {
-            // Render a compact message (only the text and a hoverable timestamp)
+            // Render a compact message
             messageEl.className = 'flex items-center pl-14 pr-4 py-0.5 hover:bg-gray-800/50 group';
             messageEl.innerHTML = `
-                <p class="text-gray-200 whitespace-pre-wrap break-words">${msg.text}</p>
+                <div class="text-gray-200 whitespace-pre-wrap break-words">${formatMessageText(msg.text)}</div>
                 <span class="text-xs text-gray-500 ml-auto pl-4 opacity-0 group-hover:opacity-100 transition-opacity">${msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
             `;
         } else {
@@ -664,19 +685,15 @@ const renderMessages = (messages) => {
             messageEl.className = 'flex p-4 hover:bg-gray-800/50 pt-6';
             const timestamp = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'sending...';
             const messageUserAvatar = isValidHttpUrl(msg.user.photoURL) ? msg.user.photoURL : DEFAULT_AVATAR_SVG;
-            const messageImage = msg.imageUrl && isValidHttpUrl(msg.imageUrl)
-                ? `<a href="${msg.imageUrl}" target="_blank" rel="noopener noreferrer" class="block mt-2"><img src="${msg.imageUrl}" alt="Uploaded content" class="rounded-lg max-w-xs max-h-64 object-cover"></a>`
-                : '';
             
             messageEl.innerHTML = `
-                <img src="${messageUserAvatar}" alt="${msg.user.displayName}" class="w-10 h-10 rounded-full mr-4 cursor-pointer object-cover" data-userid="${msg.user.uid}" />
+                <img src="${messageUserAvatar}" alt="${msg.user.displayName}" class="w-10 h-10 rounded-full mr-4 cursor-pointer object-cover flex-shrink-0" data-userid="${msg.user.uid}" />
                 <div>
                     <div class="flex items-baseline">
                         <span class="font-semibold mr-2 cursor-pointer" style="color: ${roleColor};" data-userid="${msg.user.uid}">${msg.user.displayName}</span>
                         <span class="text-xs text-gray-500">${timestamp}</span>
                     </div>
-                    ${msg.text ? `<p class="text-gray-200 whitespace-pre-wrap break-words">${msg.text}</p>` : ''}
-                    ${messageImage}
+                    ${msg.text ? `<div class="text-gray-200 whitespace-pre-wrap break-words">${formatMessageText(msg.text)}</div>` : ''}
                 </div>
             `;
         }
@@ -688,8 +705,6 @@ const renderMessages = (messages) => {
         lastMessageTimestamp = currentTimestamp;
     });
 
-    // The timeout ensures this runs after the DOM has been updated and rendered,
-    // giving a more accurate scrollHeight, especially if messages contain images.
     setTimeout(() => {
         if (messageList) {
             messageList.scrollTop = messageList.scrollHeight;
@@ -1066,14 +1081,13 @@ const handleSendMessage = async (e) => {
     const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-button');
     const text = messageInput.value.trim();
-  
+
     if ((!text && !stagedFile) || !currentUser) return;
 
     sendButton.disabled = true;
 
-    // Command handling
+    // Command handling (unchanged)
     if (text.startsWith('/')) {
-        // Handle commands that don't send a message first
         if (text === '/tetris') {
             const tetrisWindow = window.open('', 'tetris', 'width=450,height=500,resizable=yes');
             if (tetrisWindow) {
@@ -1081,11 +1095,10 @@ const handleSendMessage = async (e) => {
                 tetrisWindow.document.close();
             }
             messageInput.value = '';
-            cancelImagePreview();
+            cancelFilePreview();
             messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-            return; // Exit after handling the command
+            return;
         }
-
         if (text === '/admin') {
             if (auth.currentUser && auth.currentUser.email === 'nineteenp2@gmail.com') {
                 const adminWindow = window.open('', 'adminPanel', 'width=550,height=350,resizable=yes');
@@ -1094,72 +1107,65 @@ const handleSendMessage = async (e) => {
                     adminWindow.document.close();
                 }
             }
-            // Whether user is admin or not, we clear the command and don't send a message.
             messageInput.value = '';
-            cancelImagePreview();
+            cancelFilePreview();
             messageInput.dispatchEvent(new Event('input', { bubbles: true }));
             return;
         }
-        
         let commandResultText = null;
-        if (text === '/coinflip') {
-            commandResultText = Math.random() < 0.5 ? 'Heads' : 'Tails';
-        } else if (text === '/dice') {
-            commandResultText = `${Math.floor(Math.random() * 6) + 1}`;
-        } else if (text === '/shrug') {
-            commandResultText = '¯\\_(ツ)_/¯';
-        }
+        if (text === '/coinflip') commandResultText = Math.random() < 0.5 ? 'Heads' : 'Tails';
+        else if (text === '/dice') commandResultText = `${Math.floor(Math.random() * 6) + 1}`;
+        else if (text === '/shrug') commandResultText = '¯\\_(ツ)_/¯';
         
         if (commandResultText) {
-            const messageData = {
+            await sendMessage({
                 text: commandResultText,
-                imageUrl: null,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                user: {
-                    uid: currentUser.uid,
-                    displayName: currentUser.displayName,
-                    photoURL: currentUser.photoURL,
-                }
-            };
-            await sendMessage(messageData);
+                user: { uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL }
+            });
             messageInput.value = '';
-            cancelImagePreview();
-            messageInput.dispatchEvent(new Event('input')); // To update send button state
+            cancelFilePreview();
+            messageInput.dispatchEvent(new Event('input'));
             return;
         }
     }
     
+    // Logic for sending file or text message
     try {
-        let imageUrl = null;
         if (stagedFile) {
-            const filePath = `chat-images/${currentUser.uid}/${Date.now()}_${stagedFile.name}`;
-            const fileRef = storage.ref(filePath);
-            const uploadTask = await fileRef.put(stagedFile);
-            imageUrl = await uploadTask.ref.getDownloadURL();
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const fileContent = event.target.result;
+                const messageText = text 
+                    ? `${text}\n\n\`\`\`txt\n${fileContent}\n\`\`\`` 
+                    : `\`\`\`txt\n${fileContent}\n\`\`\``;
+                
+                await sendMessage({
+                    text: messageText,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    user: { uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL }
+                });
+                messageInput.value = '';
+                cancelFilePreview();
+            };
+            reader.onerror = (error) => {
+                console.error("Error reading file:", error);
+                alert("Failed to read the selected file.");
+                messageInput.dispatchEvent(new Event('input', { bubbles: true })); // Re-enable button
+            };
+            reader.readAsText(stagedFile);
+        } else {
+            await sendMessage({
+                text: text,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                user: { uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL }
+            });
+            messageInput.value = '';
         }
-
-        const messageData = {
-            text: text, // Always include text, even if it's an empty string
-            imageUrl: imageUrl, // Include imageUrl, which can be null
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            user: {
-                uid: currentUser.uid,
-                displayName: currentUser.displayName,
-                photoURL: currentUser.photoURL,
-            }
-        };
-        
-        await sendMessage(messageData);
-        
-        // Reset input and preview on success
-        messageInput.value = '';
-        cancelImagePreview();
-
     } catch (error) {
         console.error("Error sending message:", error);
-        alert("Failed to send message. Please check your network connection and Firebase Storage rules.");
+        alert("Failed to send message.");
     } finally {
-        // Re-evaluate button state
         messageInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 };
@@ -1421,39 +1427,39 @@ const showUserProfile = async (userId) => {
 };
 
 // =================================================================================
-// Image Handling
+// File Handling
 // =================================================================================
 
-const handleImageFileSelect = (e) => {
+const handleFileSelect = (e) => {
     const file = e.target.files[0];
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file || file.type !== 'text/plain') {
+        if (file) alert('Only .txt files are allowed.');
+        return;
+    }
     
     stagedFile = file;
-    const imagePreviewContainer = document.getElementById('image-preview-container');
-    const imagePreview = document.getElementById('image-preview');
+    const filePreviewContainer = document.getElementById('file-preview-container');
+    const filePreviewName = document.getElementById('file-preview-name');
     const sendButton = document.getElementById('send-button');
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        imagePreview.src = event.target.result;
-        imagePreviewContainer.classList.remove('hidden');
-        if (sendButton) sendButton.disabled = false;
-    };
-    reader.readAsDataURL(file);
+    filePreviewName.textContent = file.name;
+    filePreviewContainer.classList.remove('hidden');
+    filePreviewContainer.style.display = 'flex';
+    if (sendButton) sendButton.disabled = false;
 };
 
-const cancelImagePreview = () => {
-    const imageUploadInput = document.getElementById('image-upload-input');
-    const imagePreviewContainer = document.getElementById('image-preview-container');
-    const imagePreview = document.getElementById('image-preview');
+const cancelFilePreview = () => {
+    const fileUploadInput = document.getElementById('file-upload-input');
+    const filePreviewContainer = document.getElementById('file-preview-container');
+    const filePreviewName = document.getElementById('file-preview-name');
     const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-button');
 
     stagedFile = null;
-    if (imageUploadInput) imageUploadInput.value = ''; // Reset file input
-    if (imagePreview) imagePreview.src = '';
-    if (imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
-    // Disable send button only if there's no text
+    if (fileUploadInput) fileUploadInput.value = '';
+    if (filePreviewName) filePreviewName.textContent = '';
+    if (filePreviewContainer) filePreviewContainer.classList.add('hidden');
+
     if (sendButton && messageInput && !messageInput.value.trim()) {
         sendButton.disabled = true;
     }
@@ -1553,8 +1559,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const serverSettingsModal = document.getElementById('server-settings-modal');
     const openServerSettingsButton = document.getElementById('open-server-settings-button');
     const attachFileButton = document.getElementById('attach-file-button');
-    const imageUploadInput = document.getElementById('image-upload-input');
-    const cancelImagePreviewButton = document.getElementById('cancel-image-preview');
+    const fileUploadInput = document.getElementById('file-upload-input');
+    const cancelFilePreviewButton = document.getElementById('cancel-file-preview');
     const cancelCreateChannelButton = document.getElementById('cancel-create-channel');
     const createChannelModal = document.getElementById('create-channel-modal');
     const serverOverviewForm = document.getElementById('server-overview-form');
@@ -1571,9 +1577,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (leaveServerButton) leaveServerButton.addEventListener('click', handleLeaveServer);
     if (addFriendForm) addFriendForm.addEventListener('submit', handleAddFriend);
     if (profileForm) profileForm.addEventListener('submit', handleUpdateProfile);
-    if (attachFileButton) attachFileButton.addEventListener('click', () => imageUploadInput.click());
-    if (imageUploadInput) imageUploadInput.addEventListener('change', handleImageFileSelect);
-    if (cancelImagePreviewButton) cancelImagePreviewButton.addEventListener('click', cancelImagePreview);
+    if (attachFileButton) attachFileButton.addEventListener('click', () => fileUploadInput.click());
+    if (fileUploadInput) fileUploadInput.addEventListener('change', handleFileSelect);
+    if (cancelFilePreviewButton) cancelFilePreviewButton.addEventListener('click', cancelFilePreview);
 
     document.querySelectorAll('.signout-button').forEach(button => {
         button.addEventListener('click', signOut);
