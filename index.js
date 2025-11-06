@@ -22,7 +22,6 @@ if (!firebase.apps.length) {
 }
 const auth = firebase.auth();
 const db = firebase.firestore();
-const storage = firebase.storage();
 const provider = new firebase.auth.GoogleAuthProvider();
 
 // =================================================================================
@@ -1432,8 +1431,14 @@ const showUserProfile = async (userId) => {
 
 const handleFileSelect = (e) => {
     const file = e.target.files[0];
-    if (!file || file.type !== 'text/plain') {
-        if (file) alert('Only .txt files are allowed.');
+    if (!file) {
+        return;
+    }
+
+    // Check by file extension, as MIME type can be unreliable.
+    if (!file.name.toLowerCase().endsWith('.txt')) {
+        alert('Only .txt files are allowed.');
+        e.target.value = ''; // Clear the file input
         return;
     }
     
