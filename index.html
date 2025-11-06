@@ -130,9 +130,9 @@
           <!-- Channels rendered by JS -->
         </nav>
         <footer class="h-14 bg-gray-900/50 p-2 flex items-center justify-between">
-          <div id="user-info-panel" class="flex items-center truncate">
+          <button id="user-info-panel" class="flex items-center truncate text-left hover:bg-gray-700/50 p-1 rounded-md w-full">
             <!-- User info rendered by JS -->
-          </div>
+          </button>
           <div class="flex items-center space-x-2 text-gray-400">
             <button id="logout-button" class="hover:text-white" title="Logout">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
@@ -145,8 +145,8 @@
       <div id="chat-panel" class="flex-1 flex flex-col bg-gray-700">
         <div id="placeholder-view" class="flex-1 flex items-center justify-center">
             <div class="text-center text-gray-400">
-                <h2 class="text-2xl font-bold">Select a server</h2>
-                <p class="mt-2">Choose a server from the list to get started.</p>
+                <h2 class="text-2xl font-bold">Welcome to Conflict!</h2>
+                <p class="mt-2">Create a server to get started.</p>
             </div>
         </div>
         <div id="chat-view" class="hidden flex-1 flex-col">
@@ -173,11 +173,17 @@
           </main>
         </div>
       </div>
+      
+      <!-- Version Number -->
+      <div class="absolute bottom-1 right-2 text-xs text-gray-500">
+          v1.3 <!-- Remember to update this version number! -->
+      </div>
+
 
       <!-- App-wide Error Overlay -->
       <div id="app-error-overlay" class="hidden absolute inset-0 bg-gray-900/90 z-50 items-center justify-center">
           <div class="text-center p-8 bg-gray-700 rounded-lg shadow-xl max-w-lg">
-              <h2 class="text-2xl font-bold text-red-400">Connection Error</h2>
+              <h2 id="app-error-title" class="text-2xl font-bold text-red-400">Connection Error</h2>
               <p id="app-error-message" class="mt-2 text-gray-300">Could not connect to the database.</p>
           </div>
       </div>
@@ -199,6 +205,34 @@
             </form>
         </div>
     </div>
+    
+    <!-- User Profile Modal -->
+    <div id="profile-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center">
+        <div class="bg-gray-700 rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-2xl font-bold text-center mb-6">My Profile</h2>
+            <form id="profile-form">
+                <div class="mb-4">
+                    <label for="profile-username-input" class="text-xs font-bold uppercase text-gray-400">Username</label>
+                    <input id="profile-username-input" type="text" class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                </div>
+                <div class="mb-4">
+                    <label for="profile-avatar-input" class="text-xs font-bold uppercase text-gray-400">Avatar URL</label>
+                    <input id="profile-avatar-input" type="url" class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div class="mb-6">
+                    <label class="text-xs font-bold uppercase text-gray-400">Friend Code (Your User ID)</label>
+                    <div class="w-full bg-gray-800 border border-gray-900 rounded-md p-2 mt-1 text-gray-400 select-all">
+                        <span id="friend-code-display"></span>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-md flex justify-end space-x-4">
+                    <button type="button" id="cancel-profile-changes" class="text-gray-300 hover:text-white">Cancel</button>
+                    <button type="submit" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-md font-semibold">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 
     <script type="module" src="index.js"></script>
   </body>

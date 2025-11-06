@@ -36,7 +36,7 @@ const serverList = document.getElementById('server-list');
 const channelListPanel = document.getElementById('channel-list-panel');
 const serverNameHeader = document.getElementById('server-name-header');
 const channelList = document.getElementById('channel-list');
-const userInfoPanel = document.getElementById('user-info-panel');
+const userInfoPanel = document.getElementById('user-info-panel') as HTMLButtonElement;
 const chatPanel = document.getElementById('chat-panel');
 const placeholderView = document.getElementById('placeholder-view');
 const chatView = document.getElementById('chat-view');
@@ -52,6 +52,7 @@ const cancelAddServerButton = document.getElementById('cancel-add-server');
 const serverNameInput = document.getElementById('server-name-input') as HTMLInputElement;
 const appErrorOverlay = document.getElementById('app-error-overlay');
 const appErrorMessage = document.getElementById('app-error-message');
+const appErrorTitle = document.getElementById('app-error-title');
 
 // Email Auth Elements
 const signupForm = document.getElementById('signup-form') as HTMLFormElement;
@@ -63,6 +64,15 @@ const signinPasswordInput = document.getElementById('signin-password') as HTMLIn
 const showSigninLink = document.getElementById('show-signin-link');
 const showSignupLink = document.getElementById('show-signup-link');
 
+// Profile Modal Elements
+const profileModal = document.getElementById('profile-modal');
+const profileForm = document.getElementById('profile-form') as HTMLFormElement;
+const profileUsernameInput = document.getElementById('profile-username-input') as HTMLInputElement;
+const profileAvatarInput = document.getElementById('profile-avatar-input') as HTMLInputElement;
+const friendCodeDisplay = document.getElementById('friend-code-display');
+const cancelProfileChangesButton = document.getElementById('cancel-profile-changes');
+
+
 // =================================================================================
 // App State
 // =================================================================================
@@ -72,6 +82,7 @@ let activeChannelId: string | null = null;
 let messageUnsubscribe = () => {};
 let channelUnsubscribe = () => {};
 let usersUnsubscribe = () => {};
+let serversUnsubscribe = () => {};
 
 // =================================================================================
 // Authentication
@@ -105,17 +116,20 @@ auth.onAuthStateChanged(async (user: any) => {
         appView.classList.remove('hidden');
         renderUserInfo();
         loadServers();
+        setupPresence();
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Firestore Error:", error);
         loginView.classList.add('hidden');
         appView.classList.remove('hidden');
-        if (appErrorMessage) {
-            appErrorMessage.textContent = 'Failed to connect to the database. Please ensure Cloud Firestore has been created in your Firebase project console and the security rules are correctly configured.';
+        if (error.code === 'permission-denied') {
+            appErrorTitle.textContent = "Permission Denied";
+            appErrorMessage.textContent = "Your database security rules are preventing access. Please update your Firestore rules to allow authenticated users to read and write data.";
+        } else {
+            appErrorTitle.textContent = "Connection Error";
+            appErrorMessage.textContent = 'Failed to connect to the database. Please ensure Cloud Firestore has been created and configured in your Firebase project.';
         }
-        if (appErrorOverlay) {
-            appErrorOverlay.classList.remove('hidden');
-        }
+        appErrorOverlay.classList.remove('hidden');
     }
   } else {
     // User is signed out.
@@ -126,8 +140,20 @@ auth.onAuthStateChanged(async (user: any) => {
     loginView.classList.remove('hidden');
     appView.classList.add('hidden');
     appErrorOverlay.classList.add('hidden');
+    // Cleanup listeners
+    if(serversUnsubscribe) serversUnsubscribe();
+    if(channelUnsubscribe) channelUnsubscribe();
+    if(messageUnsubscribe) messageUnsubscribe();
+    if(usersUnsubscribe) usersUnsubscribe();
   }
 });
+
+const setupPresence = () => {
+    const userStatusRef = db.collection('users').doc(currentUser.uid);
+    window.addEventListener('beforeunload', () => {
+        userStatusRef.update({ status: 'offline' });
+    });
+}
 
 const showLoginError = (message: string) => {
     if (loginErrorContainer) {
@@ -148,12 +174,8 @@ const signInWithGoogle = () => {
     auth.signInWithPopup(provider).catch((error: any) => {
         let message = "An unknown error occurred during Google sign-in.";
         switch (error.code) {
-            case 'auth/popup-closed-by-user':
-                message = 'Sign-in cancelled. The popup was closed before completion.';
-                break;
-            case 'auth/cancelled-popup-request':
-                message = 'Sign-in cancelled because another popup was opened.';
-                break;
+            case 'auth/popup-closed-by-user': message = 'Sign-in cancelled.'; break;
+            case 'auth/cancelled-popup-request': message = 'Sign-in cancelled.'; break;
         }
         showLoginError(message);
     });
@@ -167,17 +189,11 @@ const handleSignUp = async (e: Event) => {
     try {
         await auth.createUserWithEmailAndPassword(email, password);
     } catch (error: any) {
-        let message = "An unknown error occurred during sign-up.";
+        let message = "An unknown error occurred.";
         switch (error.code) {
-            case 'auth/email-already-in-use':
-                message = 'An account with this email already exists. Please sign in instead.';
-                break;
-            case 'auth/invalid-email':
-                message = 'Please enter a valid email address.';
-                break;
-            case 'auth/weak-password':
-                message = 'Password should be at least 6 characters long.';
-                break;
+            case 'auth/email-already-in-use': message = 'An account with this email already exists.'; break;
+            case 'auth/invalid-email': message = 'Please enter a valid email.'; break;
+            case 'auth/weak-password': message = 'Password must be at least 6 characters.'; break;
         }
         showLoginError(message);
     }
@@ -191,17 +207,11 @@ const handleSignIn = async (e: Event) => {
     try {
         await auth.signInWithEmailAndPassword(email, password);
     } catch (error: any) {
-        let message = "An unknown error occurred during sign-in.";
+        let message = "An unknown error occurred.";
         switch(error.code) {
-            case 'auth/user-not-found':
-                message = 'No account found with this email. Please sign up first.';
-                break;
-            case 'auth/wrong-password':
-                message = 'Incorrect password. Please try again.';
-                break;
-            case 'auth/invalid-email':
-                message = 'Please enter a valid email address.';
-                break;
+            case 'auth/user-not-found': message = 'No account found with this email.'; break;
+            case 'auth/wrong-password': message = 'Incorrect password.'; break;
+            case 'auth/invalid-email': message = 'Please enter a valid email.'; break;
         }
         showLoginError(message);
     }
@@ -280,12 +290,13 @@ const renderMessages = (messages: any[]) => {
     messages.forEach(msg => {
         const messageEl = document.createElement('div');
         messageEl.className = 'flex p-4 hover:bg-gray-800/50';
+        const timestamp = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'sending...';
         messageEl.innerHTML = `
             <img src="${msg.user.photoURL}" alt="${msg.user.displayName}" class="w-10 h-10 rounded-full mr-4 mt-1" />
             <div>
                 <div class="flex items-baseline">
                     <span class="font-semibold text-white mr-2">${msg.user.displayName}</span>
-                    <span class="text-xs text-gray-500">${new Date(msg.timestamp?.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span class="text-xs text-gray-500">${timestamp}</span>
                 </div>
                 <p class="text-gray-200 whitespace-pre-wrap">${msg.text}</p>
             </div>
@@ -318,82 +329,77 @@ const renderUsers = (users: any[]) => {
 // =================================================================================
 
 const loadServers = () => {
-  db.collection('servers').orderBy('createdAt').onSnapshot(async (snapshot: any) => {
-    if (snapshot.empty) {
-        // Create a default server if none exist for a better first-time experience
-        const defaultServerRef = db.collection('servers').doc('general');
-        await defaultServerRef.set({ name: 'General Discussion', iconUrl: `https://picsum.photos/seed/general/64/64`, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-        await defaultServerRef.collection('channels').doc('general').set({ name: 'general' });
-        return;
-    }
-    const servers = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-    renderServers(servers);
-    if (!activeServerId && servers.length > 0) {
-      selectServer(servers[0].id);
-    } else if (activeServerId) {
-      // Re-render to update active state
-      selectServer(activeServerId);
-    }
-  });
+    if (serversUnsubscribe) serversUnsubscribe();
+    if (!currentUser) return;
+
+    serversUnsubscribe = db.collection('users').doc(currentUser.uid).collection('servers').orderBy('createdAt').onSnapshot((snapshot: any) => {
+        const servers = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+        renderServers(servers);
+
+        if (!activeServerId && servers.length > 0) {
+            selectServer(servers[0].id);
+        } else if (servers.length === 0) {
+            activeServerId = null;
+            activeChannelId = null;
+            channelListPanel.style.display = 'none';
+            placeholderView.style.display = 'flex';
+            chatView.style.display = 'none';
+        }
+    });
 };
 
-const selectServer = (serverId: string) => {
-  if (activeServerId === serverId) return;
+const selectServer = async (serverId: string) => {
+  if (activeServerId === serverId && channelListPanel.style.display !== 'none') return;
 
   activeServerId = serverId;
-  activeChannelId = null; // Reset channel on server switch
+  activeChannelId = null; 
 
-  // Stop listening to old channels and users
-  channelUnsubscribe();
-  usersUnsubscribe();
+  if(channelUnsubscribe) channelUnsubscribe();
+  if(usersUnsubscribe) usersUnsubscribe();
   
-  // Visually update servers
   const serverDocs: any[] = [];
-  db.collection('servers').get().then((snapshot: any) => {
-      snapshot.forEach((doc: any) => serverDocs.push({id: doc.id, ...doc.data()}));
-      renderServers(serverDocs);
-  });
+  const snapshot = await db.collection('users').doc(currentUser.uid).collection('servers').get();
+  snapshot.forEach((doc: any) => serverDocs.push({id: doc.id, ...doc.data()}));
+  renderServers(serverDocs);
   
   channelListPanel.style.display = 'flex';
+  placeholderView.style.display = 'flex';
+  chatView.style.display = 'none';
   placeholderView.innerHTML = `
     <div class="text-center text-gray-400">
         <h2 class="text-2xl font-bold">Select a channel</h2>
         <p class="mt-2">Pick a channel to see the conversation.</p>
     </div>
   `;
-  placeholderView.style.display = 'flex';
-  chatView.style.display = 'none';
 
-  db.collection('servers').doc(serverId).get().then((doc: any) => {
-    if (doc.exists) {
-      const serverData = doc.data();
-      channelUnsubscribe = db.collection('servers').doc(serverId).collection('channels').onSnapshot((snapshot: any) => {
-        const channels = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-        renderChannels(serverData, channels);
-        if (!activeChannelId && channels.length > 0) {
-          selectChannel(channels[0].id);
-        }
+  const serverDoc = await db.collection('users').doc(currentUser.uid).collection('servers').doc(serverId).get();
+  if (serverDoc.exists) {
+      const serverData = serverDoc.data();
+      channelUnsubscribe = db.collection('users').doc(currentUser.uid).collection('servers').doc(serverId).collection('channels').onSnapshot((snapshot: any) => {
+          const channels = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+          renderChannels(serverData, channels);
+          if (!activeChannelId && channels.length > 0) {
+              selectChannel(channels[0].id);
+          }
       });
-    }
-  });
+  }
 
   usersUnsubscribe = db.collection('users').onSnapshot((snapshot: any) => {
       const users = snapshot.docs.map((doc: any) => ({id: doc.id, ...doc.data()}));
       renderUsers(users);
   });
-
 };
 
 const selectChannel = (channelId: string) => {
   activeChannelId = channelId;
-  
-  // Unsubscribe from previous channel's messages
-  messageUnsubscribe();
+  if(messageUnsubscribe) messageUnsubscribe();
 
   placeholderView.style.display = 'none';
   chatView.style.display = 'flex';
   
-  db.collection('servers').doc(activeServerId).collection('channels').doc(channelId).get().then((doc: any) => {
+  const channelRef = db.collection('users').doc(currentUser.uid).collection('servers').doc(activeServerId).collection('channels').doc(channelId);
+  
+  channelRef.get().then((doc: any) => {
       if (doc.exists) {
         const channelData = doc.data();
         chatHeader.innerHTML = `
@@ -404,15 +410,13 @@ const selectChannel = (channelId: string) => {
       }
   });
 
-  messageUnsubscribe = db.collection('servers').doc(activeServerId).collection('channels').doc(channelId)
-    .collection('messages').orderBy('timestamp', 'asc').onSnapshot((snapshot: any) => {
+  messageUnsubscribe = channelRef.collection('messages').orderBy('timestamp', 'asc').onSnapshot((snapshot: any) => {
       const messages = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
       renderMessages(messages);
     });
 
-  // Re-render channels to show active state
-  db.collection('servers').doc(activeServerId).get().then((serverDoc: any) => {
-      db.collection('servers').doc(activeServerId).collection('channels').get().then((channelDocs: any) => {
+  db.collection('users').doc(currentUser.uid).collection('servers').doc(activeServerId).get().then((serverDoc: any) => {
+      db.collection('users').doc(currentUser.uid).collection('servers').doc(activeServerId).collection('channels').get().then((channelDocs: any) => {
           renderChannels(serverDoc.data(), channelDocs.docs.map((d: any) => ({id: d.id, ...d.data()})));
       });
   });
@@ -422,7 +426,7 @@ const handleSendMessage = (e: Event) => {
   e.preventDefault();
   const text = messageInput.value.trim();
   if (text && activeChannelId && currentUser) {
-    db.collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId).collection('messages').add({
+    db.collection('users').doc(currentUser.uid).collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId).collection('messages').add({
       text: text,
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       user: {
@@ -439,13 +443,13 @@ const handleCreateServer = async (e: Event) => {
     e.preventDefault();
     const serverName = serverNameInput.value.trim();
     if(serverName && currentUser) {
-        const newServer = await db.collection('servers').add({
+        const newServer = await db.collection('users').doc(currentUser.uid).collection('servers').add({
             name: serverName,
             iconUrl: `https://picsum.photos/seed/${Date.now()}/64/64`,
             owner: currentUser.uid,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
-        await db.collection('servers').doc(newServer.id).collection('channels').doc('general').set({
+        await db.collection('users').doc(currentUser.uid).collection('servers').doc(newServer.id).collection('channels').doc('general').set({
             name: 'general'
         });
         
@@ -455,6 +459,35 @@ const handleCreateServer = async (e: Event) => {
     }
 };
 
+const handleUpdateProfile = async (e: Event) => {
+    e.preventDefault();
+    const newUsername = profileUsernameInput.value.trim();
+    const newAvatarUrl = profileAvatarInput.value.trim();
+    if (!newUsername) return;
+
+    try {
+        const user = auth.currentUser;
+        await user.updateProfile({
+            displayName: newUsername,
+            photoURL: newAvatarUrl || currentUser.photoURL 
+        });
+
+        await db.collection('users').doc(user.uid).update({
+            displayName: newUsername,
+            photoURL: newAvatarUrl || currentUser.photoURL
+        });
+        
+        currentUser.displayName = newUsername;
+        currentUser.photoURL = newAvatarUrl || currentUser.photoURL;
+        renderUserInfo();
+        
+        profileModal.style.display = 'none';
+
+    } catch(error) {
+        console.error("Error updating profile:", error);
+        alert("Failed to update profile.");
+    }
+};
 
 // =================================================================================
 // Event Listeners
@@ -484,7 +517,6 @@ cancelAddServerButton.addEventListener('click', () => {
     addServerModal.style.display = 'none';
     serverNameInput.value = '';
 });
-// Close modal on outside click
 addServerModal.addEventListener('click', (e: MouseEvent) => {
     if (e.target === addServerModal) {
         addServerModal.style.display = 'none';
@@ -492,16 +524,31 @@ addServerModal.addEventListener('click', (e: MouseEvent) => {
     }
 });
 
+// Profile Modal Listeners
+userInfoPanel.addEventListener('click', () => {
+    profileUsernameInput.value = currentUser.displayName;
+    profileAvatarInput.value = currentUser.photoURL;
+    friendCodeDisplay.textContent = currentUser.uid;
+    profileModal.style.display = 'flex';
+});
+
+cancelProfileChangesButton.addEventListener('click', () => {
+    profileModal.style.display = 'none';
+});
+
+profileModal.addEventListener('click', (e: MouseEvent) => {
+    if (e.target === profileModal) {
+        profileModal.style.display = 'none';
+    }
+});
+profileForm.addEventListener('submit', handleUpdateProfile);
+
+
 messageInput.addEventListener('input', () => {
     sendButton.disabled = !messageInput.value.trim();
 });
 sendButton.disabled = true; // Initially disable
 
-window.addEventListener('beforeunload', () => {
-    if (currentUser) {
-        db.collection('users').doc(currentUser.uid).update({ status: 'offline' });
-    }
-});
 // FIX: This file is treated as a script when it has no imports or exports,
 // causing its declarations to be in the global scope. This conflicts with
 // declarations in other files (e.g., index.js). By adding an empty export,
