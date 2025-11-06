@@ -31,13 +31,14 @@ const loginView = document.getElementById('login-view');
 const appView = document.getElementById('app-view');
 const loginButton = document.getElementById('login-button');
 const loginErrorContainer = document.getElementById('login-error-container');
-const logoutButton = document.getElementById('logout-button');
+const serverListContainer = document.getElementById('server-list-container');
 const serverList = document.getElementById('server-list');
 const channelListPanel = document.getElementById('channel-list-panel');
 const serverNameHeader = document.getElementById('server-name-header');
 const serverNameText = document.getElementById('server-name-text');
 const channelList = document.getElementById('channel-list');
 const userInfoPanel = document.getElementById('user-info-panel');
+const userInfoPanelHome = document.getElementById('user-info-panel-home');
 const chatPanel = document.getElementById('chat-panel');
 const placeholderView = document.getElementById('placeholder-view');
 const chatView = document.getElementById('chat-view');
@@ -50,6 +51,13 @@ const userListAside = document.getElementById('user-list-aside');
 const appErrorOverlay = document.getElementById('app-error-overlay');
 const appErrorMessage = document.getElementById('app-error-message');
 const appErrorTitle = document.getElementById('app-error-title');
+
+// Home / DM View Elements
+const homeView = document.getElementById('home-view');
+const friendList = document.getElementById('friend-list');
+const addFriendForm = document.getElementById('add-friend-form');
+const addFriendInput = document.getElementById('add-friend-input');
+const addFriendStatus = document.getElementById('add-friend-status');
 
 // Add Server Modal Elements
 const addServerModal = document.getElementById('add-server-modal');
@@ -94,12 +102,14 @@ const cancelInviteButton = document.getElementById('cancel-invite-button');
 // App State
 // =================================================================================
 let currentUser = null;
+let activeView = 'servers'; // 'servers' or 'home'
 let activeServerId = null;
-let activeChannelId = null;
+let activeChannelId = null; // Can be a server channel ID or a DM channel ID
 let messageUnsubscribe = () => {};
 let channelUnsubscribe = () => {};
 let usersUnsubscribe = () => {};
 let serversUnsubscribe = () => {};
+let friendsUnsubscribe = () => {};
 
 // =================================================================================
 // Authentication
@@ -119,7 +129,7 @@ auth.onAuthStateChanged(async (user) => {
           await user.updateProfile({ displayName, photoURL });
         }
         
-        await userDocRef.set({ displayName, photoURL, status: 'online' });
+        await userDocRef.set({ displayName, photoURL, status: 'online', friends: [] });
         currentUser = { uid: user.uid, displayName, photoURL };
       } else {
         await userDocRef.update({ status: 'online' });
@@ -131,7 +141,9 @@ auth.onAuthStateChanged(async (user) => {
       appView.classList.remove('hidden');
       renderUserInfo();
       loadServers();
+      loadFriends();
       setupPresence();
+      selectHome(); // Default to home view on login
 
     } catch (error) {
         console.error("Firestore error:", error);
@@ -159,6 +171,7 @@ auth.onAuthStateChanged(async (user) => {
     if(channelUnsubscribe) channelUnsubscribe();
     if(messageUnsubscribe) messageUnsubscribe();
     if(usersUnsubscribe) usersUnsubscribe();
+    if(friendsUnsubscribe) friendsUnsubscribe();
   }
 });
 
@@ -234,7 +247,7 @@ const signOut = () => auth.signOut().catch((error) => console.error("Sign out er
 // =================================================================================
 const renderUserInfo = () => {
   if (!currentUser) return;
-  userInfoPanel.innerHTML = `
+  const userInfoHTML = `
     <div class="relative mr-2">
         <img src="${currentUser.photoURL}" alt="${currentUser.displayName}" class="w-10 h-10 rounded-full"/>
         <div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-gray-800 rounded-full"></div>
@@ -244,10 +257,35 @@ const renderUserInfo = () => {
         <p class="text-xs text-gray-400">Online</p>
     </div>
   `;
+  userInfoPanel.innerHTML = userInfoHTML;
+  userInfoPanelHome.innerHTML = userInfoHTML;
 };
 
 const renderServers = (servers) => {
-    serverList.innerHTML = ''; // Clear existing servers
+    serverListContainer.innerHTML = '';
+    
+    // Home Button
+    const homeButton = document.createElement('div');
+    homeButton.className = "relative group mb-2";
+    const isHomeActive = activeView === 'home';
+    homeButton.innerHTML = `
+      <div class="absolute left-0 h-0 w-1 bg-white rounded-r-full transition-all duration-200 ${isHomeActive ? 'h-10' : 'group-hover:h-5'}"></div>
+      <button class="flex items-center justify-center w-12 h-12 rounded-3xl transition-all duration-200 group-hover:rounded-2xl ${isHomeActive ? 'bg-blue-500 rounded-2xl' : 'bg-gray-700 hover:bg-blue-500'} focus:outline-none">
+        <svg class="w-7 h-7 text-gray-200" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+      </button>
+      <span class="absolute left-16 p-2 text-sm bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Home</span>
+    `;
+    homeButton.querySelector('button').onclick = selectHome;
+    serverListContainer.appendChild(homeButton);
+
+    const separator = document.createElement('div');
+    separator.className = "w-8 border-t border-gray-700 my-2";
+    serverListContainer.appendChild(separator);
+    
+    const serverListElement = document.createElement('div');
+    serverListElement.id = 'server-list';
+    serverListContainer.appendChild(serverListElement);
+
     servers.forEach(server => {
         const isActive = server.id === activeServerId;
         const serverIcon = document.createElement('div');
@@ -260,7 +298,7 @@ const renderServers = (servers) => {
             <span class="absolute left-16 p-2 text-sm bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">${server.name}</span>
         `;
         serverIcon.querySelector('button').onclick = () => selectServer(server.id);
-        serverList.appendChild(serverIcon);
+        serverListElement.appendChild(serverIcon);
     });
     
     // Add "Add Server" button
@@ -272,7 +310,7 @@ const renderServers = (servers) => {
       </button>
     `;
     addServerButton.querySelector('button').onclick = () => addServerModal.style.display = 'flex';
-    serverList.appendChild(addServerButton);
+    serverListContainer.appendChild(addServerButton);
 };
 
 const renderChannels = (server, channels) => {
@@ -292,6 +330,24 @@ const renderChannels = (server, channels) => {
         `;
         channelLink.onclick = () => selectChannel(channel.id);
         channelList.appendChild(channelLink);
+    });
+};
+
+const renderFriends = (friends) => {
+    friendList.innerHTML = `<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase px-2 pt-2 pb-1">Friends — ${friends.length}</h2>`;
+    friends.forEach(friend => {
+        const friendEl = document.createElement('button');
+        const isActive = activeView === 'home' && activeChannelId === getDmChannelId(friend.id);
+        friendEl.className = `flex items-center w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
+        friendEl.innerHTML = `
+            <div class="relative mr-2">
+                <img src="${friend.photoURL}" alt="${friend.displayName}" class="w-8 h-8 rounded-full" />
+                <div class="absolute bottom-0 right-0 w-2.5 h-2.5 ${friend.status === 'online' ? 'bg-green-500' : 'bg-gray-500'} border-2 border-gray-800 rounded-full"></div>
+            </div>
+            <span class="font-medium truncate">${friend.displayName}</span>
+        `;
+        friendEl.onclick = () => selectDmChannel(friend);
+        friendList.appendChild(friendEl);
     });
 };
 
@@ -337,57 +393,106 @@ const renderUsers = (users) => {
 // =================================================================================
 // Data Handling & State Management
 // =================================================================================
+const getDmChannelId = (friendId) => {
+    return [currentUser.uid, friendId].sort().join('_');
+};
 
 const loadServers = () => {
     if (serversUnsubscribe) serversUnsubscribe();
     if (!currentUser) return;
-
+    
     serversUnsubscribe = db.collection('servers')
         .where('members', 'array-contains', currentUser.uid)
-        .orderBy('createdAt')
         .onSnapshot((snapshot) => {
             const userServers = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
             renderServers(userServers);
 
-            if (!activeServerId && userServers.length > 0) {
+            if (activeView !== 'home' && !activeServerId && userServers.length > 0) {
                 selectServer(userServers[0].id);
-            } else if (userServers.length === 0) {
-                // No servers, show placeholder
-                activeServerId = null;
-                activeChannelId = null;
-                channelListPanel.style.display = 'none';
-                placeholderView.style.display = 'flex';
-                chatView.style.display = 'none';
+            } else if (userServers.length === 0 && activeView !== 'home') {
+                selectHome();
             } else if (activeServerId && !userServers.some(s => s.id === activeServerId)) {
-                // If the active server was deleted or left, reset view
-                activeServerId = null;
-                activeChannelId = null;
-                channelListPanel.style.display = 'none';
-                placeholderView.style.display = 'flex';
-                chatView.style.display = 'none';
-                if (userServers.length > 0) {
-                    selectServer(userServers[0].id);
-                }
+                selectHome();
+            }
+        }, (error) => {
+            console.error("Error loading servers:", error);
+            if (error.code === 'failed-precondition') {
+                appErrorTitle.textContent = "Database Index Required";
+                appErrorMessage.innerHTML = `A database index is required for this app to function. Please open the developer console (F12), find the error message from Firebase, and click the link to create the index in your Firebase project. It may take a few minutes to build.`;
+                appErrorOverlay.classList.remove('hidden');
             }
         });
 };
 
+const loadFriends = () => {
+    if (friendsUnsubscribe) friendsUnsubscribe();
+    if (!currentUser) return;
+    
+    friendsUnsubscribe = db.collection('users').doc(currentUser.uid).onSnapshot(async (doc) => {
+        if (doc.exists) {
+            const userData = doc.data();
+            const friendIds = userData.friends || [];
+            if (friendIds.length > 0) {
+                const friendDocs = await db.collection('users').where(firebase.firestore.FieldPath.documentId(), 'in', friendIds).get();
+                const friends = friendDocs.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderFriends(friends);
+            } else {
+                renderFriends([]);
+            }
+        }
+    });
+};
+
+
+const selectHome = () => {
+    activeView = 'home';
+    activeServerId = null;
+    activeChannelId = null;
+
+    if (messageUnsubscribe) messageUnsubscribe();
+    if (channelUnsubscribe) channelUnsubscribe();
+    if (usersUnsubscribe) usersUnsubscribe();
+    
+    homeView.style.display = 'flex';
+    channelListPanel.style.display = 'none';
+    chatView.style.display = 'none';
+    userListAside.style.display = 'none';
+    placeholderView.style.display = 'flex';
+    placeholderView.innerHTML = `
+    <div class="text-center text-gray-400">
+        <h2 class="text-2xl font-bold">Direct Messages</h2>
+        <p class="mt-2">Select a friend to start a conversation.</p>
+    </div>
+    `;
+
+    // Re-render servers to update active state
+    db.collection('servers').where('members', 'array-contains', currentUser.uid).get().then(snap => {
+        renderServers(snap.docs.map(d => ({id: d.id, ...d.data()})));
+    });
+    // Re-render friends list to clear active state
+    loadFriends();
+};
 
 const selectServer = async (serverId) => {
-    if (activeServerId === serverId && channelListPanel.style.display !== 'none') return;
+    if (activeServerId === serverId && activeView === 'servers') return;
 
+    activeView = 'servers';
     activeServerId = serverId;
     activeChannelId = null;
 
     if (channelUnsubscribe) channelUnsubscribe();
     if (usersUnsubscribe) usersUnsubscribe();
+    if (messageUnsubscribe) messageUnsubscribe();
+    
+    homeView.style.display = 'none';
+    channelListPanel.style.display = 'flex';
+    userListAside.style.display = 'block';
 
     // Re-render servers to update active state
-    const snapshot = await db.collection('servers').where('members', 'array-contains', currentUser.uid).orderBy('createdAt').get();
+    const snapshot = await db.collection('servers').where('members', 'array-contains', currentUser.uid).get();
     const allUserServers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     renderServers(allUserServers);
 
-    channelListPanel.style.display = 'flex';
     placeholderView.style.display = 'flex';
     chatView.style.display = 'none';
     placeholderView.innerHTML = `
@@ -405,6 +510,7 @@ const selectServer = async (serverId) => {
             const serverData = doc.data();
             const memberUIDs = serverData.members || [];
             if (memberUIDs.length > 0) {
+                // BUG FIX: Only fetch users who are members of the current server.
                 const userDocs = await db.collection('users').where(firebase.firestore.FieldPath.documentId(), 'in', memberUIDs).get();
                 const users = userDocs.docs.map(d => ({ id: d.id, ...d.data() }));
                 renderUsers(users);
@@ -460,20 +566,54 @@ const selectChannel = (channelId) => {
     });
 };
 
+const selectDmChannel = (friend) => {
+    activeChannelId = getDmChannelId(friend.id);
+    if (messageUnsubscribe) messageUnsubscribe();
+
+    placeholderView.style.display = 'none';
+    chatView.style.display = 'flex';
+    userListAside.style.display = 'none';
+
+    chatHeader.innerHTML = `
+        <div class="relative mr-2">
+            <img src="${friend.photoURL}" alt="${friend.displayName}" class="w-7 h-7 rounded-full" />
+            <div class="absolute bottom-0 right-0 w-2 h-2 ${friend.status === 'online' ? 'bg-green-500' : 'bg-gray-500'} border border-gray-800 rounded-full"></div>
+        </div>
+        <h2 class="font-semibold text-lg text-white">${friend.displayName}</h2>
+    `;
+    messageInput.placeholder = `Message @${friend.displayName}`;
+
+    const dmRef = db.collection('dms').doc(activeChannelId);
+    messageUnsubscribe = dmRef.collection('messages').orderBy('timestamp', 'asc').onSnapshot((snapshot) => {
+        const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderMessages(messages);
+    });
+
+    // Re-render friends list to show active state
+    loadFriends();
+};
+
+
 const handleSendMessage = (e) => {
   e.preventDefault();
   const text = messageInput.value.trim();
-  if (text && activeServerId && activeChannelId && currentUser) {
-    db.collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId).collection('messages').add({
-      text: text,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      user: {
-        uid: currentUser.uid,
-        displayName: currentUser.displayName,
-        photoURL: currentUser.photoURL,
+  if (text && currentUser) {
+      const messageData = {
+          text: text,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          user: {
+              uid: currentUser.uid,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL,
+          }
+      };
+      
+      if (activeView === 'servers' && activeServerId && activeChannelId) {
+          db.collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId).collection('messages').add(messageData);
+      } else if (activeView === 'home' && activeChannelId) {
+          db.collection('dms').doc(activeChannelId).collection('messages').add(messageData);
       }
-    });
-    messageInput.value = '';
+      messageInput.value = '';
   }
 };
 
@@ -497,6 +637,37 @@ const handleCreateServer = async (e) => {
         addServerModal.style.display = 'none';
         selectServer(newServerRef.id);
     }
+};
+
+const handleAddFriend = async (e) => {
+    e.preventDefault();
+    const friendId = addFriendInput.value.trim();
+    if (!friendId || friendId === currentUser.uid) return;
+
+    addFriendStatus.textContent = '...';
+    addFriendStatus.className = 'text-xs mt-1 h-3 text-gray-400';
+
+    const friendRef = db.collection('users').doc(friendId);
+    const friendDoc = await friendRef.get();
+
+    if (!friendDoc.exists) {
+        addFriendStatus.textContent = 'User not found.';
+        addFriendStatus.className = 'text-xs mt-1 h-3 text-red-400';
+        return;
+    }
+
+    const currentUserRef = db.collection('users').doc(currentUser.uid);
+    await currentUserRef.update({
+        friends: firebase.firestore.FieldValue.arrayUnion(friendId)
+    });
+    await friendRef.update({
+        friends: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
+    });
+    
+    addFriendStatus.textContent = 'Friend added!';
+    addFriendStatus.className = 'text-xs mt-1 h-3 text-green-400';
+    addFriendInput.value = '';
+    setTimeout(() => { addFriendStatus.textContent = ''; }, 2000);
 };
 
 const handleUpdateProfile = async (e) => {
@@ -542,6 +713,7 @@ const handleLeaveServer = async () => {
             await serverRef.update({
                 members: firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
             });
+            selectHome();
         } catch (error) {
             console.error("Error leaving server:", error);
             alert("Failed to leave server.");
@@ -587,13 +759,13 @@ const handleInviteFriend = async (e) => {
 // Event Listeners
 // =================================================================================
 loginButton.addEventListener('click', signInWithGoogle);
-logoutButton.addEventListener('click', signOut);
 messageForm.addEventListener('submit', handleSendMessage);
 addServerForm.addEventListener('submit', handleCreateServer);
 signupForm.addEventListener('submit', handleSignUp);
 signinForm.addEventListener('submit', handleSignIn);
 inviteForm.addEventListener('submit', handleInviteFriend);
 leaveServerButton.addEventListener('click', handleLeaveServer);
+addFriendForm.addEventListener('submit', handleAddFriend);
 
 showSigninLink.addEventListener('click', (e) => {
     e.preventDefault();
@@ -623,12 +795,15 @@ addServerModal.addEventListener('click', (e) => {
 });
 
 // Profile Modal Listeners
-userInfoPanel.addEventListener('click', () => {
+const openProfileModal = () => {
     profileUsernameInput.value = currentUser.displayName;
     profileAvatarInput.value = currentUser.photoURL;
     friendCodeDisplay.textContent = currentUser.uid;
     profileModal.style.display = 'flex';
-});
+};
+userInfoPanel.addEventListener('click', openProfileModal);
+userInfoPanelHome.addEventListener('click', openProfileModal);
+
 
 cancelProfileChangesButton.addEventListener('click', () => {
     profileModal.style.display = 'none';
