@@ -1,5 +1,3 @@
-
-
 // Since we are using the compat libraries loaded via script tags in index.html,
 // the firebase object is available globally.
 
@@ -68,7 +66,8 @@ const EMOJIS = [
 '🛫', '🛬', '🛩️', '🛰️', '🚀', '🛸', '🚁', '⚓', '🛳️', '⛴️', '🚢', '🛶', '⛵', '🚤', '🪝', '🪵',
 '🏠', '🏡', '🏘️', '🏢', '🏣', '🏤', '🏥', '🏦', '🏨', '🏪', '🏫', '🏬', '🏛️', '⛪', '🕌', '🛕',
 '🕍', '⛩️', '🕋', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛺', '🌁', '🌉', '🌆', '🌇',
-'🌃', '🌌', '🌠', '🎇', '🎆', '🌅', '🌄', '🏞️', '🌲', '🌳', '🏜️', '🏝️', '🏖️', '🏕️', '🪨', '🪵',
+'🌃', '🌌', '🌠', '🎇', '🎆', '🌅', '🌄', '🏞️', '🌲', '🌳', '🏜️', '🏝️', '🏖️', '🏕️', '🪨', '🪵'
+
 ];
 
 const tetrisHTML = `
@@ -332,7 +331,6 @@ let activeServerRoles = {};
 let activeServerRoleOrder = [];
 let activeServerMembers = {}; // { userId: { roles: [...] } }
 let allServerUsers = []; // { id, displayName, photoURL, status }
-let activeServerCallStatus = {};
 let stagedFile = null;
 let draggedRoleId = null;
 
@@ -342,14 +340,15 @@ let channelUnsubscribe = () => {};
 let usersUnsubscribe = () => {};
 let serversUnsubscribe = () => {};
 let friendsUnsubscribe = () => {};
-let callStatusUnsubscribe = () => {};
-let callUnsubscribes = {};
+let callListenerUnsubscribe = () => {};
+let currentCallUnsubscribe = () => {};
 
 
-// WebRTC State for Calls
-let peerConnections = {}; // { [peerId]: RTCPeerConnection }
-let activeCallInfo = null; // { type: 'dm'|'server', ... }
-let localStream = null;
+// WebRTC State
+let peerConnection;
+let localStream;
+let remoteStream = new MediaStream();
+let activeCallData = null;
 const iceServers = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -396,6 +395,7 @@ auth.onAuthStateChanged(async (user) => {
       loadServers();
       loadFriends();
       setupPresence();
+      setupCallListener();
       selectHome(); // Default to home view on login
 
     } catch (error) {
@@ -415,7 +415,6 @@ auth.onAuthStateChanged(async (user) => {
     if (currentUser) {
         db.collection('users').doc(currentUser.uid).update({ status: 'offline' }).catch((e) => console.error("Failed to update status on logout", e));
     }
-    await hangUp();
     currentUser = null;
     loginView.classList.remove('hidden');
     appView.classList.add('hidden');
@@ -426,14 +425,15 @@ auth.onAuthStateChanged(async (user) => {
     if(messageUnsubscribe) messageUnsubscribe();
     if(usersUnsubscribe) usersUnsubscribe();
     if(friendsUnsubscribe) friendsUnsubscribe();
-    if(callStatusUnsubscribe) callStatusUnsubscribe();
+    if(callListenerUnsubscribe) callListenerUnsubscribe();
+    if(currentCallUnsubscribe) currentCallUnsubscribe();
+    await hangUp();
   }
 });
 
 const setupPresence = () => {
     const userStatusRef = db.collection('users').doc(currentUser.uid);
     window.addEventListener('beforeunload', () => {
-        hangUp();
         userStatusRef.update({ status: 'offline' });
     });
 }
@@ -622,7 +622,7 @@ const renderServers = (servers) => {
     serverListContainer.appendChild(addServerButton);
 };
 
-const renderChannels = (server, channels, activeCalls = {}) => {
+const renderChannels = (server, channels) => {
     const serverNameText = document.getElementById('server-name-text');
     const channelList = document.getElementById('channel-list');
     if (!serverNameText || !channelList) return;
@@ -644,13 +644,11 @@ const renderChannels = (server, channels, activeCalls = {}) => {
 
     channels.forEach(channel => {
         const isActive = channel.id === activeChannelId;
-        const isCallActive = activeCalls[channel.id];
         const channelLink = document.createElement('button');
         channelLink.className = `flex items-center w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
         channelLink.innerHTML = `
             <svg class="w-5 h-5 mr-2 text-gray-500" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
             <span class="font-medium truncate">${channel.name}</span>
-            ${isCallActive ? `<svg class="w-4 h-4 ml-auto text-green-400" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>` : ''}
         `;
         channelLink.onclick = () => selectChannel(channel.id);
         channelList.appendChild(channelLink);
@@ -905,23 +903,19 @@ const loadFriends = () => {
 };
 
 
-const selectHome = () => {
-    const videoCallView = document.getElementById('video-call-view');
-    if (activeCallInfo) {
-      videoCallView.classList.add('hidden');
-    } else {
-      hangUp();
-    }
+const selectHome = async () => {
+    await hangUp();
     activeView = 'home';
     activeServerId = null;
     activeChannelId = null;
-    
-    // Clean up all potential listeners from server view
+    activeServerRoles = {};
+    activeServerRoleOrder = [];
+    activeServerMembers = {};
+    allServerUsers = [];
+
     if (messageUnsubscribe) messageUnsubscribe();
-    if (callStatusUnsubscribe) callStatusUnsubscribe();
     if (channelUnsubscribe) channelUnsubscribe();
     if (usersUnsubscribe) usersUnsubscribe();
-    if (callUnsubscribes.dmSignals) callUnsubscribes.dmSignals();
     
     const homeView = document.getElementById('home-view');
     const channelListPanel = document.getElementById('channel-list-panel');
@@ -952,30 +946,15 @@ const selectHome = () => {
 };
 
 const selectServer = async (serverId) => {
-    const videoCallView = document.getElementById('video-call-view');
-    if (activeCallInfo && (activeCallInfo.type !== 'server' || activeCallInfo.serverId !== serverId)) {
-        videoCallView.classList.add('hidden');
-    } else if (!activeCallInfo) {
-        hangUp();
-    }
-
-    if (activeServerId === serverId && activeView === 'servers') {
-        if (activeCallInfo && activeCallInfo.serverId === serverId) {
-            videoCallView.classList.remove('hidden');
-        }
-        return;
-    }
-
+    if (activeServerId === serverId && activeView === 'servers') return;
+    await hangUp();
     activeView = 'servers';
     activeServerId = serverId;
     activeChannelId = null;
-    activeServerCallStatus = {};
 
     if (channelUnsubscribe) channelUnsubscribe();
     if (usersUnsubscribe) usersUnsubscribe();
     if (messageUnsubscribe) messageUnsubscribe();
-    if (callStatusUnsubscribe) callStatusUnsubscribe();
-    if (callUnsubscribes.dmSignals) callUnsubscribes.dmSignals();
     
     const homeView = document.getElementById('home-view');
     const channelListPanel = document.getElementById('channel-list-panel');
@@ -1037,36 +1016,15 @@ const selectServer = async (serverId) => {
         serverRef.get().then((serverDoc) => {
             if (!serverDoc.exists) return;
             const channels = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-            renderChannels(serverDoc.data(), channels, activeServerCallStatus);
+            renderChannels(serverDoc.data(), channels);
             if (!activeChannelId && channels.length > 0) {
                 selectChannel(channels[0].id);
-            }
-        });
-    });
-
-    // Listener for active call status in the server
-    callStatusUnsubscribe = serverRef.collection('status').doc('calls').onSnapshot(doc => {
-        activeServerCallStatus = doc.exists ? doc.data() : {};
-        // Re-render channels to show/hide call icons
-        serverRef.get().then(serverDoc => {
-            if (serverDoc.exists) {
-                serverRef.collection('channels').orderBy('name').get().then(channelDocs => {
-                    const channels = channelDocs.docs.map(d => ({ id: d.id, ...d.data() }));
-                    renderChannels(serverDoc.data(), channels, activeServerCallStatus);
-                });
             }
         });
     });
 };
 
 const selectChannel = (channelId) => {
-    const videoCallView = document.getElementById('video-call-view');
-    if (activeCallInfo && activeCallInfo.channelId !== channelId) {
-        videoCallView.classList.add('hidden');
-    } else if (activeCallInfo && activeCallInfo.channelId === channelId) {
-        videoCallView.classList.remove('hidden');
-    }
-
     activeChannelId = channelId;
     if (messageUnsubscribe) messageUnsubscribe();
 
@@ -1084,16 +1042,10 @@ const selectChannel = (channelId) => {
         if (doc.exists) {
             const channelData = doc.data();
             if(chatHeader) chatHeader.innerHTML = `
-              <div class="flex items-center truncate">
-                <svg class="w-6 h-6 text-gray-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
-                <h2 class="font-semibold text-lg text-white truncate">${channelData.name}</h2>
-              </div>
-              <button id="join-call-button" class="ml-auto text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-600 flex-shrink-0">
-                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>
-              </button>
+            <svg class="w-6 h-6 text-gray-500 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
+            <h2 class="font-semibold text-lg text-white">${channelData.name}</h2>
             `;
             if(messageInput) messageInput.placeholder = `Message #${channelData.name}`;
-            document.getElementById('join-call-button').onclick = () => joinServerCall(activeServerId, channelId, channelData.name);
         }
     });
 
@@ -1105,22 +1057,13 @@ const selectChannel = (channelId) => {
     // Re-render channels to show active state
     db.collection('servers').doc(activeServerId).get().then((serverDoc) => {
         db.collection('servers').doc(activeServerId).collection('channels').orderBy('name').get().then((channelDocs) => {
-            renderChannels(serverDoc.data(), channelDocs.docs.map((d) => ({ id: d.id, ...d.data() })), activeServerCallStatus);
+            renderChannels(serverDoc.data(), channelDocs.docs.map((d) => ({ id: d.id, ...d.data() })));
         });
     });
 };
 
-const selectDmChannel = (friend) => {
-    const videoCallView = document.getElementById('video-call-view');
-    if (activeCallInfo && (activeCallInfo.type !== 'dm' || activeCallInfo.friend.id !== friend.id)) {
-      videoCallView.classList.add('hidden');
-    } else if (activeCallInfo && activeCallInfo.type === 'dm' && activeCallInfo.friend.id === friend.id) {
-        videoCallView.classList.remove('hidden');
-    }
-    
-    // Explicitly set the application state for DMs
-    activeView = 'home';
-    activeServerId = null;
+const selectDmChannel = async (friend) => {
+    await hangUp();
     activeChannelId = getDmChannelId(friend.id);
     if (messageUnsubscribe) messageUnsubscribe();
     
@@ -1144,11 +1087,11 @@ const selectDmChannel = (friend) => {
                 </div>
                 <h2 class="font-semibold text-lg text-white">${friend.displayName}</h2>
             </div>
-            <button id="dm-call-button" class="ml-auto text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-600 flex-shrink-0">
+            <button id="start-call-button" class="ml-auto text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-600">
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>
             </button>
         `;
-        document.getElementById('dm-call-button').onclick = () => startDmCall(friend);
+        document.getElementById('start-call-button').onclick = () => startCall(friend);
     }
 
     if(messageInput) messageInput.placeholder = `Message @${friend.displayName}`;
@@ -1159,8 +1102,8 @@ const selectDmChannel = (friend) => {
         renderMessages(messages);
     });
 
-    listenForDmSignals(friend);
-    loadFriends(); // Re-render friends list to show active state
+    // Re-render friends list to show active state
+    loadFriends();
 };
 
 const sendMessage = async (messageData) => {
@@ -1602,415 +1545,281 @@ const toggleCamera = () => {
     }
 };
 
-const updateVideoGrid = () => {
-    const grid = document.getElementById('video-grid');
-    if (!grid) return;
-    const videoCount = grid.children.length;
-
-    const layouts = {
-        1: 'grid-cols-1 grid-rows-1',
-        2: 'grid-cols-2 grid-rows-1',
-        3: 'grid-cols-3 grid-rows-1',
-        4: 'grid-cols-2 grid-rows-2',
-        5: 'grid-cols-3 grid-rows-2',
-        6: 'grid-cols-3 grid-rows-2',
-    };
-    const layout = layouts[videoCount] || 'grid-cols-3 grid-rows-3';
-    grid.className = `w-full h-full flex-1 p-2 grid ${layout} gap-2 auto-rows-fr`;
+const setupCallListener = () => {
+    if (callListenerUnsubscribe) callListenerUnsubscribe();
+    callListenerUnsubscribe = db.collection('calls')
+        .where('calleeId', '==', currentUser.uid)
+        .where('status', '==', 'ringing')
+        .onSnapshot(snapshot => {
+            if (!snapshot.empty) {
+                const callDoc = snapshot.docs[0];
+                handleIncomingCall({ id: callDoc.id, ...callDoc.data() });
+            }
+        });
 };
 
-const addVideoForPeer = (peerId, stream) => {
-    const grid = document.getElementById('video-grid');
-    if (!grid) return;
-    // Remove existing video for this peer to avoid duplicates
-    const existingEl = document.getElementById(`video-container-${peerId}`);
-    if (existingEl) existingEl.remove();
-
-    const videoContainer = document.createElement('div');
-    videoContainer.id = `video-container-${peerId}`;
-    videoContainer.className = 'bg-black rounded-lg overflow-hidden relative';
-    const videoEl = document.createElement('video');
-    videoEl.autoplay = true;
-    videoEl.playsInline = true;
-    videoEl.srcObject = stream;
-    videoEl.className = 'w-full h-full object-cover';
-    videoContainer.appendChild(videoEl);
-
-    grid.appendChild(videoContainer);
-    updateVideoGrid();
-};
-
-const removeVideoForPeer = (peerId) => {
-    const videoContainer = document.getElementById(`video-container-${peerId}`);
-    if (videoContainer) {
-        videoContainer.remove();
-        updateVideoGrid();
+const handleIncomingCall = async (callData) => {
+    if (activeCallData) {
+        // If already in a call, automatically decline.
+        const callRef = db.collection('calls').doc(callData.id);
+        await callRef.update({ status: 'declined' });
+        return;
     }
+    activeCallData = callData;
+    const callerDoc = await db.collection('users').doc(callData.callerId).get();
+    const caller = callerDoc.data();
+    showCallUI('incoming', caller);
+
+    // Set up a listener to hang up if the caller cancels
+    currentCallUnsubscribe = db.collection('calls').doc(callData.id).onSnapshot((snapshot) => {
+        if (!snapshot.exists || snapshot.data().status === 'ended') {
+            console.log("Call was cancelled by caller or ended.");
+            hangUp();
+        }
+    });
 };
 
-const showCallUI = () => {
+
+const startCall = async (friend) => {
+    if (activeCallData) return alert("You are already in a call.");
+    
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        document.getElementById('local-video').srcObject = localStream;
+    } catch (error) {
+        console.error("Could not get media devices:", error);
+        alert("Camera and microphone access are required for video calls.");
+        return;
+    }
+
+    const callRef = db.collection('calls').doc();
+    activeCallData = { 
+        id: callRef.id,
+        callerId: currentUser.uid,
+        calleeId: friend.id,
+        status: 'ringing'
+    };
+    
+    showCallUI('outgoing', friend);
+
+    peerConnection = new RTCPeerConnection(iceServers);
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+    peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+            callRef.collection('callerCandidates').add(event.candidate.toJSON());
+        }
+    };
+    
+    peerConnection.ontrack = event => {
+        const remoteVideo = document.getElementById('remote-video');
+        remoteStream.addTrack(event.track);
+        if (remoteVideo.srcObject !== remoteStream) {
+            remoteVideo.srcObject = remoteStream;
+        }
+    };
+
+    const offerDescription = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offerDescription);
+
+    const offer = { sdp: offerDescription.sdp, type: offerDescription.type };
+    
+    await callRef.set({
+        ...activeCallData,
+        offer,
+    });
+    
+    // Listen for answer
+    currentCallUnsubscribe = callRef.onSnapshot(async snapshot => {
+        const data = snapshot.data();
+        if (!data) return;
+        if (data.answer && !peerConnection.currentRemoteDescription) {
+            const answerDescription = new RTCSessionDescription(data.answer);
+            await peerConnection.setRemoteDescription(answerDescription);
+        }
+        if (data.status === 'connected' && activeCallData.status !== 'connected') {
+            activeCallData.status = 'connected';
+            const calleeDoc = await db.collection('users').doc(data.calleeId).get();
+            showCallUI('connected', calleeDoc.data());
+        }
+        if (data.status === 'declined' || data.status === 'ended') {
+            await hangUp();
+        }
+    });
+
+    callRef.collection('calleeCandidates').onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+            if (change.type === 'added') {
+                const candidate = new RTCIceCandidate(change.doc.data());
+                peerConnection.addIceCandidate(candidate);
+            }
+        });
+    });
+};
+
+const answerCall = async () => {
+    if (!activeCallData) return;
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        document.getElementById('local-video').srcObject = localStream;
+    } catch (error) {
+        console.error("Could not get media devices:", error);
+        alert("Camera and microphone access are required for video calls.");
+        return;
+    }
+    
+    const callRef = db.collection('calls').doc(activeCallData.id);
+    const callerDoc = await db.collection('users').doc(activeCallData.callerId).get();
+    
+    showCallUI('connected', callerDoc.data());
+
+    peerConnection = new RTCPeerConnection(iceServers);
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    
+    peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+            callRef.collection('calleeCandidates').add(event.candidate.toJSON());
+        }
+    };
+    
+    peerConnection.ontrack = event => {
+        const remoteVideo = document.getElementById('remote-video');
+        remoteStream.addTrack(event.track);
+        if (remoteVideo.srcObject !== remoteStream) {
+            remoteVideo.srcObject = remoteStream;
+        }
+    };
+
+    const callDoc = await callRef.get();
+    const offerDescription = new RTCSessionDescription(callDoc.data().offer);
+    await peerConnection.setRemoteDescription(offerDescription);
+    
+    const answerDescription = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answerDescription);
+    
+    const answer = { type: answerDescription.type, sdp: answerDescription.sdp };
+    await callRef.update({ answer, status: 'connected' });
+    
+    if (currentCallUnsubscribe) currentCallUnsubscribe();
+    currentCallUnsubscribe = callRef.onSnapshot(snapshot => {
+        const data = snapshot.data();
+        if (data?.status === 'ended') {
+            hangUp();
+        }
+    });
+
+    callRef.collection('callerCandidates').onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+            if (change.type === 'added') {
+                const candidate = new RTCIceCandidate(change.doc.data());
+                peerConnection.addIceCandidate(candidate);
+            }
+        });
+    });
+};
+
+const declineCall = async () => {
+    if (!activeCallData) return;
+    const callRef = db.collection('calls').doc(activeCallData.id);
+    await callRef.update({ status: 'declined' });
+    await hangUp();
+};
+
+const showCallUI = (type, peer) => {
     const videoCallView = document.getElementById('video-call-view');
+    const status = document.getElementById('video-call-status');
     const controls = document.getElementById('video-call-controls');
     const localVideoContainer = document.getElementById('local-video-container');
-    const localVideo = document.getElementById('local-video');
-    const videoGrid = document.getElementById('video-grid');
 
-    videoGrid.innerHTML = '';
-    
     videoCallView.classList.remove('hidden');
-    localVideo.srcObject = localStream;
+    const peerAvatar = isValidHttpUrl(peer.photoURL) ? peer.photoURL : DEFAULT_AVATAR_SVG;
 
-    // For 1-on-1 calls, show local video in corner. For group calls, in grid.
-    if (activeCallInfo.type === 'dm') {
+    if (type === 'outgoing') {
+        status.innerHTML = `
+            <img src="${peerAvatar}" alt="${peer.displayName}" class="w-24 h-24 rounded-full mb-4 border-4 border-gray-700 object-cover animate-pulse">
+            <h3 class="text-2xl font-semibold">Calling ${peer.displayName}...</h3>
+            <p class="text-gray-300">Waiting for them to pick up.</p>
+        `;
+        controls.style.display = 'flex';
+        controls.innerHTML = `<button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>`;
+        document.getElementById('hang-up-button').onclick = hangUp;
         localVideoContainer.style.display = 'block';
-        updateVideoGrid(); // Grid will have only remote peer
-    } else {
+        status.style.display = 'flex';
+
+    } else if (type === 'incoming') {
+        status.innerHTML = `
+            <img src="${peerAvatar}" alt="${peer.displayName}" class="w-24 h-24 rounded-full mb-4 border-4 border-gray-700 object-cover">
+            <h3 class="text-2xl font-semibold">${peer.displayName} is calling...</h3>
+        `;
+        controls.style.display = 'flex';
+        controls.innerHTML = `
+            <button id="decline-call-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Decline">${HANGUP_SVG}</button>
+            <button id="answer-call-button" class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center hover:bg-green-600" aria-label="Answer">
+                <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path></svg>
+            </button>
+        `;
+        document.getElementById('decline-call-button').onclick = declineCall;
+        document.getElementById('answer-call-button').onclick = answerCall;
         localVideoContainer.style.display = 'none';
-        addVideoForPeer(currentUser.uid, localStream);
-    }
+        status.style.display = 'flex';
 
-
-    controls.style.display = 'flex';
-    controls.innerHTML = `
-        <button id="toggle-mic-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Mute microphone" data-muted="false">${MIC_ON_SVG}</button>
-        <button id="toggle-camera-button" class="w-14 h-14 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Turn on camera" data-enabled="false">${CAM_OFF_SVG}</button>
-        <button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>
-    `;
-    document.getElementById('toggle-mic-button').onclick = toggleMute;
-    document.getElementById('toggle-camera-button').onclick = toggleCamera;
-    document.getElementById('hang-up-button').onclick = hangUp;
-};
-
-// --- Server Call Logic ---
-const initServerPeerConnection = async (peerId, isInitiator) => {
-    if (peerConnections[peerId]) return;
-
-    peerConnections[peerId] = new RTCPeerConnection(iceServers);
-    localStream.getTracks().forEach(track => peerConnections[peerId].addTrack(track, localStream));
-
-    peerConnections[peerId].ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-            addVideoForPeer(peerId, event.streams[0]);
-        }
-    };
-
-    peerConnections[peerId].onicecandidate = (event) => {
-        if (event.candidate && activeCallInfo && activeCallInfo.type === 'server') {
-            const { serverId, channelId } = activeCallInfo;
-            db.collection('servers').doc(serverId).collection('channels').doc(channelId)
-              .collection('signaling').add({
-                  to: peerId, from: currentUser.uid, type: 'candidate', payload: event.candidate.toJSON()
-              });
-        }
-    };
-    
-    if (isInitiator) {
-        const offer = await peerConnections[peerId].createOffer();
-        await peerConnections[peerId].setLocalDescription(offer);
-        const { serverId, channelId } = activeCallInfo;
-        db.collection('servers').doc(serverId).collection('channels').doc(channelId)
-          .collection('signaling').add({
-              to: peerId, from: currentUser.uid, type: 'offer', payload: { sdp: offer.sdp, type: offer.type }
-          });
+    } else if (type === 'connected') {
+        status.style.display = 'none';
+        localVideoContainer.style.display = 'block';
+        controls.style.display = 'flex';
+        controls.innerHTML = `
+            <button id="toggle-mic-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Mute microphone" data-muted="false">${MIC_ON_SVG}</button>
+            <button id="toggle-camera-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Turn off camera" data-enabled="true">${CAM_ON_SVG}</button>
+            <button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>
+        `;
+        document.getElementById('toggle-mic-button').onclick = toggleMute;
+        document.getElementById('toggle-camera-button').onclick = toggleCamera;
+        document.getElementById('hang-up-button').onclick = hangUp;
     }
 };
-
-const setupCallForServerChannel = (serverId, channelId) => {
-    const participantsRef = db.collection('servers').doc(serverId).collection('channels').doc(channelId).collection('callParticipants');
-    const signalingRef = db.collection('servers').doc(serverId).collection('channels').doc(channelId).collection('signaling');
-    
-    callUnsubscribes.participants = participantsRef.onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-            const peerId = change.doc.id;
-            if (peerId === currentUser.uid) return;
-
-            if (change.type === 'added') {
-                if (currentUser.uid > peerId) {
-                    initServerPeerConnection(peerId, true);
-                }
-            }
-            if (change.type === 'removed') {
-                if (peerConnections[peerId]) {
-                    peerConnections[peerId].close();
-                    delete peerConnections[peerId];
-                }
-                removeVideoForPeer(peerId);
-            }
-        });
-    });
-
-    callUnsubscribes.signals = signalingRef.where('to', '==', currentUser.uid).onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(async change => {
-            if (change.type === 'added') {
-                const signal = change.doc.data();
-                const peerId = signal.from;
-
-                if (signal.type === 'offer') {
-                    await initServerPeerConnection(peerId, false);
-                    await peerConnections[peerId].setRemoteDescription(new RTCSessionDescription(signal.payload));
-                    const answer = await peerConnections[peerId].createAnswer();
-                    await peerConnections[peerId].setLocalDescription(answer);
-                    signalingRef.add({
-                        to: peerId, from: currentUser.uid, type: 'answer', payload: { sdp: answer.sdp, type: answer.type }
-                    });
-                } else if (signal.type === 'answer' && peerConnections[peerId]) {
-                    await peerConnections[peerId].setRemoteDescription(new RTCSessionDescription(signal.payload));
-                } else if (signal.type === 'candidate' && peerConnections[peerId]) {
-                    await peerConnections[peerId].addIceCandidate(new RTCIceCandidate(signal.payload));
-                }
-                change.doc.ref.delete();
-            }
-        });
-    });
-
-    participantsRef.doc(currentUser.uid).set({ joinedAt: firebase.firestore.FieldValue.serverTimestamp() });
-};
-
-const joinServerCall = async (serverId, channelId, channelName) => {
-    if (activeCallInfo) {
-        alert("You are already in a call. Please hang up first.");
-        return;
-    }
-
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    } catch (error) {
-        console.error("Could not get media devices:", error);
-        alert("Camera and microphone access are required for video calls.");
-        return;
-    }
-    
-    localStream.getVideoTracks()[0].enabled = false;
-    activeCallInfo = { type: 'server', serverId, channelId, channelName };
-    showPersistentCallBar();
-    showCallUI();
-
-    const callStatusRef = db.collection('servers').doc(serverId).collection('status').doc('calls');
-    await callStatusRef.set({ [channelId]: true }, { merge: true });
-
-    setupCallForServerChannel(serverId, channelId);
-};
-
-
-// --- DM Call Logic ---
-const initDmPeerConnection = (friend) => {
-    const peerId = friend.id;
-    if (peerConnections[peerId]) return;
-
-    peerConnections[peerId] = new RTCPeerConnection(iceServers);
-    localStream.getTracks().forEach(track => peerConnections[peerId].addTrack(track, localStream));
-
-    peerConnections[peerId].ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-            addVideoForPeer(peerId, event.streams[0]);
-        }
-    };
-    
-    peerConnections[peerId].onicecandidate = (event) => {
-        if (event.candidate && activeCallInfo && activeCallInfo.type === 'dm') {
-            const { channelId } = activeCallInfo;
-            db.collection('dms').doc(channelId).collection('signaling').add({
-                to: peerId, from: currentUser.uid, type: 'candidate', payload: event.candidate.toJSON()
-            });
-        }
-    };
-};
-
-const listenForDmSignals = (friend) => {
-    if (callUnsubscribes.dmSignals) callUnsubscribes.dmSignals();
-
-    const channelId = getDmChannelId(friend.id);
-    const signalingRef = db.collection('dms').doc(channelId).collection('signaling');
-
-    callUnsubscribes.dmSignals = signalingRef.where('to', '==', currentUser.uid).onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(async (change) => {
-            if (change.type === 'added') {
-                const signal = change.doc.data();
-                const peerId = signal.from;
-
-                try {
-                    if (signal.type === 'offer') {
-                        // Glare resolution: if we are also trying to make a call, decide who backs down.
-                        const isMakingCall = activeCallInfo && activeCallInfo.type === 'dm' && activeCallInfo.friend.id === peerId;
-                        
-                        // If my UID is higher, I am "impolite" and should back down to answer their call instead.
-                        const amImpolite = isMakingCall && currentUser.uid > peerId;
-
-                        if (amImpolite) {
-                            console.log("Glare detected. Backing off to answer incoming call.");
-                            // The simplest way to handle this is to hangup our initiated call, then answer theirs.
-                            await hangUp(); 
-                            await answerDmCall(signal, friend);
-                        } else if (!isMakingCall) {
-                            // Standard case: we are not making a call, so we answer.
-                            await answerDmCall(signal, friend);
-                        } else {
-                             // We are "polite" (our UID is smaller), so we ignore their offer and expect them to answer ours.
-                            console.log("Glare detected. My UID is lower, letting my offer proceed.");
-                        }
-                    
-                    } else if (signal.type === 'answer' && peerConnections[peerId]) {
-                        // Only set remote description if we are in the correct state
-                        if (peerConnections[peerId].signalingState !== 'stable') {
-                           await peerConnections[peerId].setRemoteDescription(new RTCSessionDescription(signal.payload));
-                        }
-                    } else if (signal.type === 'candidate' && peerConnections[peerId]) {
-                        // Only add candidate if a remote description has been set.
-                        if (peerConnections[peerId].remoteDescription) {
-                           await peerConnections[peerId].addIceCandidate(new RTCIceCandidate(signal.payload));
-                        }
-                    }
-                } catch (error) {
-                    console.error("Error processing signal:", signal.type, error);
-                } finally {
-                    change.doc.ref.delete(); // Cleanup signal regardless of outcome
-                }
-            }
-        });
-    });
-};
-
-const startDmCall = async (friend) => {
-    if (activeCallInfo) {
-        alert("You are already in a call. Please hang up first.");
-        return;
-    }
-    
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    } catch (error) {
-        console.error("Could not get media devices:", error);
-        alert("Camera and microphone access are required for video calls.");
-        return;
-    }
-    
-    localStream.getVideoTracks()[0].enabled = false;
-    const channelId = getDmChannelId(friend.id);
-    activeCallInfo = { type: 'dm', channelId, friend };
-
-    initDmPeerConnection(friend);
-    showCallUI();
-    showPersistentCallBar();
-
-    const offer = await peerConnections[friend.id].createOffer();
-    await peerConnections[friend.id].setLocalDescription(offer);
-
-    const signalingRef = db.collection('dms').doc(channelId).collection('signaling');
-    await signalingRef.add({
-        to: friend.id, from: currentUser.uid, type: 'offer', payload: { sdp: offer.sdp, type: offer.type }
-    });
-};
-
-const answerDmCall = async (signal, friend) => {
-    if (activeCallInfo) return; // Already in a call, ignore incoming
-
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    } catch (error) { return; }
-
-    localStream.getVideoTracks()[0].enabled = false;
-    const channelId = getDmChannelId(friend.id);
-    activeCallInfo = { type: 'dm', channelId, friend };
-
-    initDmPeerConnection(friend);
-    showCallUI();
-    showPersistentCallBar();
-
-    await peerConnections[friend.id].setRemoteDescription(new RTCSessionDescription(signal.payload));
-    const answer = await peerConnections[friend.id].createAnswer();
-    await peerConnections[friend.id].setLocalDescription(answer);
-
-    const signalingRef = db.collection('dms').doc(channelId).collection('signaling');
-    await signalingRef.add({
-        to: friend.id, from: currentUser.uid, type: 'answer', payload: { sdp: answer.sdp, type: answer.type }
-    });
-};
-
 
 const hangUp = async () => {
-    if (!activeCallInfo) return;
-
-    const callInfo = activeCallInfo;
-    activeCallInfo = null;
-    
-    Object.values(callUnsubscribes).forEach(unsub => unsub());
-    callUnsubscribes = {};
-    
-    Object.values(peerConnections).forEach(pc => pc.close());
-    peerConnections = {};
-
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
     }
-
-    if (callInfo.type === 'server') {
-        const { serverId, channelId } = callInfo;
-        const participantsRef = db.collection('servers').doc(serverId).collection('channels').doc(channelId).collection('callParticipants');
-        await participantsRef.doc(currentUser.uid).delete().catch(e => console.error("Error removing participant doc", e));
-        const remaining = await participantsRef.get();
-        if (remaining.empty) {
-            const callStatusRef = db.collection('servers').doc(serverId).collection('status').doc('calls');
-            await callStatusRef.update({ [channelId]: firebase.firestore.FieldValue.delete() });
-        }
-    } else if (callInfo.type === 'dm') {
-        const { channelId } = callInfo;
-        const signalingRef = db.collection('dms').doc(channelId).collection('signaling');
-        const snapshot = await signalingRef.get();
-        if (!snapshot.empty) {
-            const batch = db.batch();
-            snapshot.docs.forEach(doc => batch.delete(doc.ref));
-            await batch.commit().catch(e => console.error("Error cleaning up DM signals", e));
-        }
-    }
-
-    document.getElementById('video-call-view').classList.add('hidden');
-    document.getElementById('video-grid').innerHTML = '';
-    document.getElementById('local-video-container').style.display = 'none';
-    hidePersistentCallBar();
-};
-
-const showPersistentCallBar = () => {
-    if (!activeCallInfo) return;
-    const bar = document.getElementById('persistent-call-bar');
-    bar.classList.remove('hidden');
-    bar.style.display = 'flex';
+    remoteStream = new MediaStream();
     
-    let callName, rejoinHandler;
-    if (activeCallInfo.type === 'server') {
-        callName = `#${activeCallInfo.channelName}`;
-        rejoinHandler = () => {
-            selectServer(activeCallInfo.serverId).then(() => {
-                selectChannel(activeCallInfo.channelId);
-                document.getElementById('video-call-view').classList.remove('hidden');
-            });
-        };
-    } else { // dm
-        callName = `${activeCallInfo.friend.displayName}`;
-        rejoinHandler = () => {
-            selectDmChannel(activeCallInfo.friend);
-            document.getElementById('video-call-view').classList.remove('hidden');
-        };
+    // Cleanup UI
+    const videoCallView = document.getElementById('video-call-view');
+    const remoteVideo = document.getElementById('remote-video');
+    const localVideo = document.getElementById('local-video');
+    if (videoCallView) videoCallView.classList.add('hidden');
+    if (remoteVideo) remoteVideo.srcObject = null;
+    if (localVideo) localVideo.srcObject = null;
+    
+    // Reset local video position
+    const localVideoContainer = document.getElementById('local-video-container');
+    if(localVideoContainer) {
+        localVideoContainer.style.top = '1rem';
+        localVideoContainer.style.right = '1rem';
+        localVideoContainer.style.left = 'auto';
+        localVideoContainer.style.bottom = 'auto';
     }
 
-    bar.innerHTML = `
-        <div class="flex flex-col">
-            <span class="font-semibold text-sm text-green-400">Voice Connected</span>
-            <span class="text-xs text-gray-300 truncate">${callName}</span>
-        </div>
-        <div class="flex items-center space-x-2">
-            <button id="rejoin-call-button" class="text-gray-300 hover:text-white bg-gray-700/50 px-3 py-1 rounded-md text-sm">Return to Call</button>
-            <button id="disconnect-call-button" class="p-2 bg-red-500 rounded-md hover:bg-red-600">${HANGUP_SVG.replace('w-8 h-8', 'w-5 h-5')}</button>
-        </div>
-    `;
-    document.getElementById('rejoin-call-button').onclick = rejoinHandler;
-    document.getElementById('disconnect-call-button').onclick = hangUp;
-};
 
-const hidePersistentCallBar = () => {
-    const bar = document.getElementById('persistent-call-bar');
-    bar.classList.add('hidden');
-    bar.innerHTML = '';
+    if (currentCallUnsubscribe) {
+        currentCallUnsubscribe();
+        currentCallUnsubscribe = null;
+    }
+    
+    if (activeCallData) {
+        const callRef = db.collection('calls').doc(activeCallData.id);
+        const callDoc = await callRef.get();
+        if (callDoc.exists && callDoc.data().status !== 'ended') {
+            await callRef.update({ status: 'ended' });
+        }
+        activeCallData = null;
+    }
 };
 
 
