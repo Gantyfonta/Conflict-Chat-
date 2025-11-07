@@ -1,3 +1,4 @@
+
 // Since we are using the compat libraries loaded via script tags in index.html,
 // the firebase object is available globally.
 
@@ -330,6 +331,7 @@ let activeServerRoles = {};
 let activeServerRoleOrder = [];
 let activeServerMembers = {}; // { userId: { roles: [...] } }
 let allServerUsers = []; // { id, displayName, photoURL, status }
+let activeServerCallStatus = {};
 let stagedFile = null;
 let draggedRoleId = null;
 
@@ -339,6 +341,7 @@ let channelUnsubscribe = () => {};
 let usersUnsubscribe = () => {};
 let serversUnsubscribe = () => {};
 let friendsUnsubscribe = () => {};
+let callStatusUnsubscribe = () => {};
 let callUnsubscribes = {};
 
 
@@ -422,6 +425,7 @@ auth.onAuthStateChanged(async (user) => {
     if(messageUnsubscribe) messageUnsubscribe();
     if(usersUnsubscribe) usersUnsubscribe();
     if(friendsUnsubscribe) friendsUnsubscribe();
+    if(callStatusUnsubscribe) callStatusUnsubscribe();
   }
 });
 
@@ -617,7 +621,7 @@ const renderServers = (servers) => {
     serverListContainer.appendChild(addServerButton);
 };
 
-const renderChannels = (server, channels) => {
+const renderChannels = (server, channels, activeCalls = {}) => {
     const serverNameText = document.getElementById('server-name-text');
     const channelList = document.getElementById('channel-list');
     if (!serverNameText || !channelList) return;
@@ -639,11 +643,13 @@ const renderChannels = (server, channels) => {
 
     channels.forEach(channel => {
         const isActive = channel.id === activeChannelId;
+        const isCallActive = activeCalls[channel.id];
         const channelLink = document.createElement('button');
         channelLink.className = `flex items-center w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
         channelLink.innerHTML = `
             <svg class="w-5 h-5 mr-2 text-gray-500" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
             <span class="font-medium truncate">${channel.name}</span>
+            ${isCallActive ? `<svg class="w-4 h-4 ml-auto text-green-400" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>` : ''}
         `;
         channelLink.onclick = () => selectChannel(channel.id);
         channelList.appendChild(channelLink);
@@ -910,6 +916,7 @@ const selectHome = () => {
     activeChannelId = null;
     
     if (messageUnsubscribe) messageUnsubscribe();
+    if (callStatusUnsubscribe) callStatusUnsubscribe();
     
     const homeView = document.getElementById('home-view');
     const channelListPanel = document.getElementById('channel-list-panel');
@@ -957,10 +964,12 @@ const selectServer = async (serverId) => {
     activeView = 'servers';
     activeServerId = serverId;
     activeChannelId = null;
+    activeServerCallStatus = {};
 
     if (channelUnsubscribe) channelUnsubscribe();
     if (usersUnsubscribe) usersUnsubscribe();
     if (messageUnsubscribe) messageUnsubscribe();
+    if (callStatusUnsubscribe) callStatusUnsubscribe();
     
     const homeView = document.getElementById('home-view');
     const channelListPanel = document.getElementById('channel-list-panel');
@@ -1022,9 +1031,23 @@ const selectServer = async (serverId) => {
         serverRef.get().then((serverDoc) => {
             if (!serverDoc.exists) return;
             const channels = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-            renderChannels(serverDoc.data(), channels);
+            renderChannels(serverDoc.data(), channels, activeServerCallStatus);
             if (!activeChannelId && channels.length > 0) {
                 selectChannel(channels[0].id);
+            }
+        });
+    });
+
+    // Listener for active call status in the server
+    callStatusUnsubscribe = serverRef.collection('status').doc('calls').onSnapshot(doc => {
+        activeServerCallStatus = doc.exists ? doc.data() : {};
+        // Re-render channels to show/hide call icons
+        serverRef.get().then(serverDoc => {
+            if (serverDoc.exists) {
+                serverRef.collection('channels').orderBy('name').get().then(channelDocs => {
+                    const channels = channelDocs.docs.map(d => ({ id: d.id, ...d.data() }));
+                    renderChannels(serverDoc.data(), channels, activeServerCallStatus);
+                });
             }
         });
     });
@@ -1076,7 +1099,7 @@ const selectChannel = (channelId) => {
     // Re-render channels to show active state
     db.collection('servers').doc(activeServerId).get().then((serverDoc) => {
         db.collection('servers').doc(activeServerId).collection('channels').orderBy('name').get().then((channelDocs) => {
-            renderChannels(serverDoc.data(), channelDocs.docs.map((d) => ({ id: d.id, ...d.data() })));
+            renderChannels(serverDoc.data(), channelDocs.docs.map((d) => ({ id: d.id, ...d.data() })), activeServerCallStatus);
         });
     });
 };
@@ -1619,7 +1642,9 @@ const initPeerConnection = async (peerId, isInitiator) => {
     localStream.getTracks().forEach(track => peerConnections[peerId].addTrack(track, localStream));
 
     peerConnections[peerId].ontrack = (event) => {
-        addVideoForPeer(peerId, event.streams[0]);
+        if (event.streams && event.streams[0]) {
+            addVideoForPeer(peerId, event.streams[0]);
+        }
     };
 
     peerConnections[peerId].onicecandidate = (event) => {
@@ -1654,7 +1679,11 @@ const setupCallForChannel = (serverId, channelId) => {
             if (peerId === currentUser.uid) return;
 
             if (change.type === 'added') {
-                initPeerConnection(peerId, true); // Initiate connection to new participant
+                // To prevent race conditions (glare), only the peer with the lexicographically
+                // larger ID will initiate the connection.
+                if (currentUser.uid > peerId) {
+                    initPeerConnection(peerId, true);
+                }
             }
             if (change.type === 'removed') {
                 if (peerConnections[peerId]) {
@@ -1713,9 +1742,15 @@ const joinCall = async (serverId, channelId, channelName) => {
         alert("Camera and microphone access are required for video calls.");
         return;
     }
+    
+    // Turn off camera by default
+    localStream.getVideoTracks()[0].enabled = false;
 
     activeCallInfo = { serverId, channelId, channelName };
     showPersistentCallBar();
+
+    const callStatusRef = db.collection('servers').doc(serverId).collection('status').doc('calls');
+    await callStatusRef.set({ [channelId]: true }, { merge: true });
 
     const videoCallView = document.getElementById('video-call-view');
     const controls = document.getElementById('video-call-controls');
@@ -1734,7 +1769,7 @@ const joinCall = async (serverId, channelId, channelName) => {
 
     controls.innerHTML = `
         <button id="toggle-mic-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Mute microphone" data-muted="false">${MIC_ON_SVG}</button>
-        <button id="toggle-camera-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Turn off camera" data-enabled="true">${CAM_ON_SVG}</button>
+        <button id="toggle-camera-button" class="w-14 h-14 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Turn on camera" data-enabled="false">${CAM_OFF_SVG}</button>
         <button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>
     `;
     document.getElementById('toggle-mic-button').onclick = toggleMute;
@@ -1763,9 +1798,15 @@ const hangUp = async () => {
         localStream = null;
     }
 
-    // Remove self from participants list in Firestore
-    await db.collection('servers').doc(serverId).collection('channels').doc(channelId)
-      .collection('callParticipants').doc(currentUser.uid).delete().catch(e => console.error("Error removing participant doc", e));
+    // Remove self from participants list and check if call should end
+    const participantsRef = db.collection('servers').doc(serverId).collection('channels').doc(channelId).collection('callParticipants');
+    await participantsRef.doc(currentUser.uid).delete().catch(e => console.error("Error removing participant doc", e));
+
+    const remainingParticipants = await participantsRef.get();
+    if (remainingParticipants.empty) {
+        const callStatusRef = db.collection('servers').doc(serverId).collection('status').doc('calls');
+        await callStatusRef.update({ [channelId]: firebase.firestore.FieldValue.delete() });
+    }
 
     // Cleanup UI
     document.getElementById('video-call-view').classList.add('hidden');
