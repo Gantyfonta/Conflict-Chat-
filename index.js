@@ -1114,6 +1114,54 @@ const sendMessage = async (messageData) => {
     }
 }
 
+const readFileAsText = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsText(file);
+    });
+};
+
+const sendChatMessageWithSpamCheck = async (messageData) => {
+    // Only apply spam check to messages with text content
+    if (messageData.text) {
+        let messagesRef;
+        if (activeView === 'servers' && activeServerId && activeChannelId) {
+            messagesRef = db.collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId).collection('messages');
+        } else if (activeView === 'home' && activeChannelId) {
+            messagesRef = db.collection('dms').doc(activeChannelId).collection('messages');
+        }
+
+        if (messagesRef) {
+            try {
+                const spamQuery = await messagesRef
+                    .where('user.uid', '==', currentUser.uid)
+                    .orderBy('timestamp', 'desc')
+                    .limit(5)
+                    .get();
+                
+                // If the user has sent at least 5 messages previously...
+                if (spamQuery.docs.length === 5) {
+                    // ...and they are all identical to the new message...
+                    const isSpam = spamQuery.docs.every(doc => doc.data().text === messageData.text);
+                    if (isSpam) {
+                        // ...block the message.
+                        console.log("Spam detected, message blocked.");
+                        return false; // Indicate message was blocked
+                    }
+                }
+            } catch (error) {
+                console.error("Error checking for spam:", error);
+                // In case of error, let the message through to not block users.
+            }
+        }
+    }
+    
+    await sendMessage(messageData);
+    return true; // Indicate message was sent
+};
+
 const handleSendMessage = async (e) => {
     e.preventDefault();
     const messageInput = document.getElementById('message-input');
@@ -1124,7 +1172,7 @@ const handleSendMessage = async (e) => {
 
     sendButton.disabled = true;
 
-    // Command handling (unchanged)
+    // Command handling
     if (text.startsWith('/')) {
         if (text === '/tetris') {
             const tetrisWindow = window.open('', 'tetris', 'width=450,height=500,resizable=yes');
@@ -1170,36 +1218,27 @@ const handleSendMessage = async (e) => {
     
     // Logic for sending file or text message
     try {
+        let messageText;
         if (stagedFile) {
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                const fileContent = event.target.result;
-                const messageText = text 
-                    ? `${text}\n\n\`\`\`txt\n${fileContent}\n\`\`\`` 
-                    : `\`\`\`txt\n${fileContent}\n\`\`\``;
-                
-                await sendMessage({
-                    text: messageText,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                    user: { uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL }
-                });
-                messageInput.value = '';
-                cancelFilePreview();
-            };
-            reader.onerror = (error) => {
-                console.error("Error reading file:", error);
-                alert("Failed to read the selected file.");
-                messageInput.dispatchEvent(new Event('input', { bubbles: true })); // Re-enable button
-            };
-            reader.readAsText(stagedFile);
+            const fileContent = await readFileAsText(stagedFile);
+            messageText = text 
+                ? `${text}\n\n\`\`\`txt\n${fileContent}\n\`\`\`` 
+                : `\`\`\`txt\n${fileContent}\n\`\`\``;
         } else {
-            await sendMessage({
-                text: text,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                user: { uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL }
-            });
-            messageInput.value = '';
+            messageText = text;
         }
+
+        await sendChatMessageWithSpamCheck({
+            text: messageText,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            user: { uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL }
+        });
+        
+        messageInput.value = '';
+        if (stagedFile) {
+            cancelFilePreview();
+        }
+
     } catch (error) {
         console.error("Error sending message:", error);
         alert("Failed to send message.");
