@@ -345,6 +345,7 @@ const HANGUP_SVG = `<svg class="w-8 h-8 text-white" fill="currentColor" viewBox=
 let currentUser = null;
 let activeView = 'servers'; // 'servers' or 'home'
 let activeServerId = null;
+let activeServerData = null; // Cache for current server data
 let activeChannelId = null; // Can be a server channel ID or a DM channel ID
 let activeServerRoles = {};
 let activeServerRoleOrder = [];
@@ -670,21 +671,26 @@ const renderChannels = (server, channels) => {
     const channelList = document.getElementById('channel-list');
     if (!serverNameText || !channelList) return;
 
+    const hasModPerms = currentUserHasModPermissions();
+
     serverNameText.textContent = server.name;
     channelList.innerHTML = `
         <div class="flex items-center justify-between px-2 pt-2 pb-1">
             <h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Text Channels</h2>
+            ${hasModPerms ? `
             <button id="add-channel-button" class="text-gray-400 hover:text-white">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-            </button>
+            </button>` : ''}
         </div>
     `;
     
-    document.getElementById('add-channel-button').onclick = () => {
-        const createChannelModal = document.getElementById('create-channel-modal');
-        if(createChannelModal) createChannelModal.style.display = 'flex';
-    };
-
+    if (hasModPerms) {
+        document.getElementById('add-channel-button').onclick = () => {
+            const createChannelModal = document.getElementById('create-channel-modal');
+            if(createChannelModal) createChannelModal.style.display = 'flex';
+        };
+    }
+    
     channels.forEach(channel => {
         const isActive = channel.id === activeChannelId;
         const channelLink = document.createElement('button');
@@ -840,11 +846,13 @@ const renderRoles = () => {
         const roleEl = document.createElement('div');
         roleEl.className = 'flex items-center justify-between bg-gray-700 p-2 rounded-md';
         roleEl.dataset.roleId = roleId;
-        roleEl.draggable = true;
+        
+        const isOwnerRole = roleId === 'owner';
+        roleEl.draggable = !isOwnerRole;
 
         roleEl.innerHTML = `
             <div class="flex items-center pointer-events-none">
-                 <svg class="w-5 h-5 mr-3 text-gray-400 cursor-grab" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                 <svg class="w-5 h-5 mr-3 ${isOwnerRole ? 'text-gray-600' : 'text-gray-400 cursor-grab'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                 <div class="w-4 h-4 rounded-full mr-3" style="background-color: ${role.color};"></div>
                 <span class="font-semibold text-white">${role.name}</span>
             </div>
@@ -852,6 +860,31 @@ const renderRoles = () => {
         rolesList.appendChild(roleEl);
     });
 };
+
+const renderEditableChannels = async () => {
+    if (!activeServerId) return;
+    const listEl = document.getElementById('editable-channels-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<p class="text-gray-400">Loading channels...</p>';
+
+    const channelsSnapshot = await db.collection('servers').doc(activeServerId).collection('channels').orderBy('name').get();
+    const channels = channelsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    listEl.innerHTML = '';
+    channels.forEach(channel => {
+        const channelEl = document.createElement('div');
+        channelEl.className = 'flex items-center justify-between p-2 rounded-md bg-gray-800';
+        channelEl.innerHTML = `
+            <div class="flex items-center">
+                <svg class="w-5 h-5 mr-2 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
+                <input type="text" value="${channel.name}" data-channel-id="${channel.id}" class="channel-rename-input flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none rounded-md p-1 focus:bg-gray-900" />
+            </div>
+            <span class="text-xs text-green-400 opacity-0 transition-opacity" id="status-${channel.id}">Saved!</span>
+        `;
+        listEl.appendChild(channelEl);
+    });
+};
+
 
 const renderServerMembers = () => {
     const membersList = document.getElementById('server-members-list');
@@ -863,14 +896,17 @@ const renderServerMembers = () => {
         const userAvatarUrl = isValidHttpUrl(user.photoURL) ? user.photoURL : DEFAULT_AVATAR_SVG;
         const memberEl = document.createElement('div');
         memberEl.className = 'p-2 rounded-md hover:bg-gray-700/50';
+        
+        const isOwner = activeServerData && activeServerData.owner === user.id;
 
         let rolesCheckboxesHTML = activeServerRoleOrder.map(roleId => {
             const role = activeServerRoles[roleId];
-            if (!role || roleId === 'owner' || roleId === 'default') return ''; // Don't allow assigning owner/default
+            if (!role || roleId === 'owner') return ''; // Don't allow assigning owner
+            
             const isChecked = memberData.roles.includes(roleId);
             return `
                 <label class="flex items-center space-x-2 cursor-pointer">
-                    <input type="checkbox" data-userid="${user.id}" data-roleid="${roleId}" ${isChecked ? 'checked' : ''} class="form-checkbox h-4 w-4 text-blue-500 bg-gray-900 border-gray-600 rounded focus:ring-blue-500">
+                    <input type="checkbox" data-userid="${user.id}" data-roleid="${roleId}" ${isChecked ? 'checked' : ''} ${isOwner ? 'disabled' : ''} class="form-checkbox h-4 w-4 text-blue-500 bg-gray-900 border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50">
                     <div class="w-3 h-3 rounded-full" style="background-color: ${role.color};"></div>
                     <span>${role.name}</span>
                 </label>
@@ -882,6 +918,7 @@ const renderServerMembers = () => {
                 <div class="flex items-center">
                     <img src="${userAvatarUrl}" alt="${user.displayName}" class="w-8 h-8 rounded-full object-cover mr-3">
                     <span class="font-medium text-white">${user.displayName}</span>
+                    ${isOwner ? '<svg class="w-4 h-4 text-yellow-400 ml-2" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>' : ''}
                 </div>
             </div>
             <div class="pl-11 pt-2 space-y-1">
@@ -989,6 +1026,24 @@ const getHighestRole = (userId) => {
     return activeServerRoles['default']; // Fallback to default role
 };
 
+const currentUserHasModPermissions = () => {
+    if (!activeServerId || !currentUser || !activeServerData) return false;
+
+    // Check if the current user is the owner
+    if (activeServerData.owner === currentUser.uid) {
+        return true;
+    }
+
+    // Check if the user has a role with moderator permissions
+    const memberData = activeServerMembers[currentUser.uid];
+    if (!memberData || !memberData.roles) return false;
+
+    return memberData.roles.some(roleId => {
+        const role = activeServerRoles[roleId];
+        return role && role.permissions && role.permissions.isModerator;
+    });
+};
+
 
 const loadServers = () => {
     if (serversUnsubscribe) serversUnsubscribe();
@@ -1058,6 +1113,7 @@ const selectHome = async () => {
     activeView = 'home';
     activeServerId = null;
     activeChannelId = null;
+    activeServerData = null;
     activeServerRoles = {};
     activeServerRoleOrder = [];
     activeServerMembers = {};
@@ -1111,6 +1167,7 @@ const selectServer = async (serverId) => {
     const userListAside = document.getElementById('user-list-aside');
     const placeholderView = document.getElementById('placeholder-view');
     const chatView = document.getElementById('chat-view');
+    const settingsButton = document.getElementById('open-server-settings-button');
 
     if(homeView) homeView.style.display = 'none';
     if(channelListPanel) channelListPanel.style.display = 'flex';
@@ -1136,10 +1193,14 @@ const selectServer = async (serverId) => {
     usersUnsubscribe = serverRef.onSnapshot(async (doc) => {
         if (doc.exists) {
             const serverData = doc.data();
+            activeServerData = serverData; // Cache server data
             activeServerRoles = serverData.roles || {};
             activeServerRoleOrder = serverData.roleOrder || Object.keys(activeServerRoles);
             document.getElementById('server-settings-name-input').value = serverData.name;
             renderRoles();
+            
+            // Toggle server settings button based on permissions
+            if(settingsButton) settingsButton.classList.toggle('hidden', !currentUserHasModPermissions());
             
             const membersSnapshot = await serverRef.collection('members').get();
             activeServerMembers = {};
@@ -1461,8 +1522,16 @@ const handleCreateServer = async (e) => {
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             members: [currentUser.uid],
             roles: {
-                'owner': { name: 'Owner', color: '#ffc107' },
-                'default': { name: '@everyone', color: '#99aab5' }
+                'owner': { 
+                    name: 'Owner', 
+                    color: '#ffc107',
+                    permissions: { isModerator: true }
+                },
+                'default': { 
+                    name: '@everyone', 
+                    color: '#99aab5',
+                    permissions: { isModerator: false }
+                }
             },
             roleOrder: ['owner', 'default']
         });
@@ -1470,7 +1539,7 @@ const handleCreateServer = async (e) => {
             name: 'general'
         });
         await newServerRef.collection('members').doc(currentUser.uid).set({
-            roles: ['owner']
+            roles: ['owner', 'default']
         });
         
         serverNameInput.value = '';
@@ -1481,6 +1550,7 @@ const handleCreateServer = async (e) => {
 
 const handleCreateChannel = async (e) => {
     e.preventDefault();
+    if (!currentUserHasModPermissions()) return;
     const channelNameInput = document.getElementById('channel-name-input');
     const modal = document.getElementById('create-channel-modal');
     const channelName = channelNameInput.value.trim();
@@ -1496,24 +1566,58 @@ const handleCreateChannel = async (e) => {
     }
 }
 
+const handleRenameChannel = async (channelId, newName) => {
+    if (!currentUserHasModPermissions() || !activeServerId || !channelId || !newName) return;
+
+    const formattedName = newName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    if (!formattedName) {
+        // Maybe show an error on the input
+        console.error("Invalid channel name format");
+        return;
+    }
+
+    try {
+        const channelRef = db.collection('servers').doc(activeServerId).collection('channels').doc(channelId);
+        await channelRef.update({ name: formattedName });
+        
+        // Visual feedback
+        const statusEl = document.getElementById(`status-${channelId}`);
+        if(statusEl) {
+            statusEl.style.opacity = '1';
+            setTimeout(() => { statusEl.style.opacity = '0'; }, 2000);
+        }
+    } catch (error) {
+        console.error("Error renaming channel:", error);
+    }
+};
+
+
 const handleCreateRole = async (e) => {
     e.preventDefault();
+    if (!currentUserHasModPermissions()) return;
     const roleNameInput = document.getElementById('role-name-input');
     const roleColorInput = document.getElementById('role-color-input');
+    const roleModeratorToggle = document.getElementById('role-moderator-toggle');
     const roleName = roleNameInput.value.trim();
     const roleColor = roleColorInput.value;
+    const isModerator = roleModeratorToggle.checked;
 
     if (roleName && activeServerId) {
         const serverRef = db.collection('servers').doc(activeServerId);
         const roleId = `role_${Date.now()}`;
         
         await serverRef.update({
-            [`roles.${roleId}`]: { name: roleName, color: roleColor },
+            [`roles.${roleId}`]: { 
+                name: roleName, 
+                color: roleColor,
+                permissions: { isModerator }
+            },
             roleOrder: firebase.firestore.FieldValue.arrayUnion(roleId)
         });
         
         roleNameInput.value = '';
         roleColorInput.value = '#99aab5';
+        roleModeratorToggle.checked = false;
     }
 }
 
@@ -1653,7 +1757,14 @@ const handleLeaveServer = async () => {
     const serverDoc = await serverRef.get();
     if (!serverDoc.exists) return;
 
-    const serverName = serverDoc.data().name;
+    const serverData = serverDoc.data();
+    const serverName = serverData.name;
+    
+    // Prevent owner from leaving
+    if (serverData.owner === currentUser.uid) {
+        alert(`You are the owner of ${serverName}. To leave, you must first transfer ownership or delete the server.`);
+        return;
+    }
 
     if (confirm(`Are you sure you want to leave ${serverName}?`)) {
         try {
@@ -1661,15 +1772,6 @@ const handleLeaveServer = async () => {
                 members: firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
             });
             await serverRef.collection('members').doc(currentUser.uid).delete();
-
-            const updatedServerDoc = await serverRef.get();
-            if (updatedServerDoc.exists) {
-                const members = updatedServerDoc.data().members || [];
-                if (members.length === 0) {
-                    console.log(`Server ${serverName} is now empty. Deleting...`);
-                    await deleteServer(serverRef);
-                }
-            }
             
             selectHome();
         } catch (error) {
@@ -2359,7 +2461,7 @@ document.getElementById('close-settings-modal').addEventListener('click', () => 
     document.getElementById('settings-modal').style.display = 'none';
 });
 document.getElementById('open-server-settings-button').addEventListener('click', async () => {
-    if (!activeServerId) return;
+    if (!activeServerId || !currentUserHasModPermissions()) return;
 
     try {
         const serverDoc = await db.collection('servers').doc(activeServerId).get();
@@ -2375,6 +2477,15 @@ document.getElementById('open-server-settings-button').addEventListener('click',
             
             const statusEl = document.getElementById('server-settings-status');
             if(statusEl) statusEl.textContent = '';
+            
+            // Pre-render the active tab
+            const defaultSection = document.querySelector('.server-settings-nav-button').dataset.section;
+            document.querySelectorAll('.server-settings-section').forEach(section => {
+               section.classList.toggle('hidden', section.id !== defaultSection);
+            });
+            if (defaultSection === 'channels-section') {
+                renderEditableChannels();
+            }
         }
     } catch (error) {
         console.error("Error fetching server settings:", error);
@@ -2399,10 +2510,15 @@ document.querySelectorAll('.server-settings-nav-button').forEach(button => {
             btn.classList.toggle('bg-gray-700', btn === button);
             btn.classList.toggle('text-white', btn === button);
         });
+        // Load content for channels tab when clicked
+        if (sectionId === 'channels-section') {
+            renderEditableChannels();
+        }
     });
 });
 document.getElementById('server-overview-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!currentUserHasModPermissions()) return;
     const newName = document.getElementById('server-settings-name-input').value.trim();
     const newIconUrl = document.getElementById('server-settings-icon-url').value.trim();
     const statusEl = document.getElementById('server-settings-status');
@@ -2450,6 +2566,14 @@ document.getElementById('server-settings-icon-preview').addEventListener('error'
     e.target.src = DEFAULT_AVATAR_SVG;
 });
 document.getElementById('create-role-form').addEventListener('submit', handleCreateRole);
+document.getElementById('editable-channels-list').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && e.target.matches('.channel-rename-input')) {
+        e.preventDefault();
+        const channelId = e.target.dataset.channelId;
+        const newName = e.target.value.trim();
+        handleRenameChannel(channelId, newName);
+    }
+});
 
 // Global click listener to close dropdowns
 document.addEventListener('click', (e) => {
@@ -2500,7 +2624,12 @@ document.addEventListener('mouseup', () => {
 // Roles Drag and Drop
 const rolesList = document.getElementById('roles-list');
 rolesList.addEventListener('dragstart', (e) => {
-    draggedRoleId = e.target.dataset.roleId;
+    const roleId = e.target.dataset.roleId;
+    if (roleId === 'owner') {
+        e.preventDefault();
+        return;
+    }
+    draggedRoleId = roleId;
     e.target.classList.add('role-dragging');
 });
 rolesList.addEventListener('dragend', (e) => {
@@ -2510,7 +2639,7 @@ rolesList.addEventListener('dragend', (e) => {
 rolesList.addEventListener('dragover', (e) => {
     e.preventDefault();
     const target = e.target.closest('[data-role-id]');
-    if (target && target.dataset.roleId !== draggedRoleId) {
+    if (target && target.dataset.roleId !== draggedRoleId && target.dataset.roleId !== 'owner') {
         const rect = target.getBoundingClientRect();
         const next = (e.clientY - rect.top) / rect.height > 0.5;
         const draggedEl = rolesList.querySelector(`[data-role-id="${draggedRoleId}"]`);
@@ -2523,6 +2652,7 @@ rolesList.addEventListener('dragover', (e) => {
 });
 rolesList.addEventListener('drop', async (e) => {
     e.preventDefault();
+    if (!currentUserHasModPermissions()) return;
     const newRoleOrder = Array.from(rolesList.children).map(child => child.dataset.roleId);
     activeServerRoleOrder = newRoleOrder;
     await db.collection('servers').doc(activeServerId).update({ roleOrder: newRoleOrder });
@@ -2531,6 +2661,7 @@ rolesList.addEventListener('drop', async (e) => {
 // Member role checkbox handler
 document.getElementById('server-members-list').addEventListener('change', async (e) => {
     if (e.target.type === 'checkbox') {
+        if (!currentUserHasModPermissions()) return;
         const userId = e.target.dataset.userid;
         const roleId = e.target.dataset.roleid;
         const isChecked = e.target.checked;
