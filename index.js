@@ -1,4 +1,5 @@
 
+
 // Since we are using the compat libraries loaded via script tags in index.html,
 // the firebase object is available globally.
 
@@ -915,8 +916,11 @@ const selectHome = () => {
     activeServerId = null;
     activeChannelId = null;
     
+    // Clean up all potential listeners from server view
     if (messageUnsubscribe) messageUnsubscribe();
     if (callStatusUnsubscribe) callStatusUnsubscribe();
+    if (channelUnsubscribe) channelUnsubscribe();
+    if (usersUnsubscribe) usersUnsubscribe();
     
     const homeView = document.getElementById('home-view');
     const channelListPanel = document.getElementById('channel-list-panel');
@@ -1112,6 +1116,9 @@ const selectDmChannel = (friend) => {
       hangUp();
     }
     
+    // Explicitly set the application state for DMs
+    activeView = 'home';
+    activeServerId = null;
     activeChannelId = getDmChannelId(friend.id);
     if (messageUnsubscribe) messageUnsubscribe();
     
