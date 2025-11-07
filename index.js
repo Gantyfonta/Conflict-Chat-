@@ -67,7 +67,6 @@ const EMOJIS = [
 '🏠', '🏡', '🏘️', '🏢', '🏣', '🏤', '🏥', '🏦', '🏨', '🏪', '🏫', '🏬', '🏛️', '⛪', '🕌', '🛕',
 '🕍', '⛩️', '🕋', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛺', '🌁', '🌉', '🌆', '🌇',
 '🌃', '🌌', '🌠', '🎇', '🎆', '🌅', '🌄', '🏞️', '🌲', '🌳', '🏜️', '🏝️', '🏖️', '🏕️', '🪨', '🪵'
-
 ];
 
 const tetrisHTML = `
@@ -1560,6 +1559,83 @@ const cancelFilePreview = () => {
 // WebRTC Call - Generic Controls & Cleanup
 // =================================================================================
 
+function makeDraggable(element) {
+    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+    element.onmousedown = dragMouseDown;
+
+    function dragMouseDown(e) {
+        e = e || window.event;
+        e.preventDefault();
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        document.onmousemove = elementDrag;
+    }
+
+    function elementDrag(e) {
+        e = e || window.event;
+        e.preventDefault();
+        pos1 = pos3 - e.clientX;
+        pos2 = pos4 - e.clientY;
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        element.style.top = (element.offsetTop - pos2) + "px";
+        element.style.left = (element.offsetLeft - pos1) + "px";
+    }
+
+    function closeDragElement() {
+        document.onmouseup = null;
+        document.onmousemove = null;
+    }
+}
+
+function createVideoContainer(userId, isLocal = false) {
+    const videoGrid = document.getElementById('video-grid');
+    if (!videoGrid) return null;
+
+    let container = document.getElementById(`video-container-${userId}`);
+    // If container exists, remove it before creating a new one to avoid duplicates.
+    if (container) {
+        container.remove();
+    }
+
+    container = document.createElement('div');
+    container.id = `video-container-${userId}`;
+    container.className = 'relative bg-gray-800 rounded-lg overflow-hidden aspect-video';
+
+    const videoEl = document.createElement('video');
+    videoEl.id = isLocal ? 'local-video' : `remote-video-${userId}`;
+    videoEl.autoplay = true;
+    videoEl.playsInline = true;
+    videoEl.className = 'w-full h-full object-cover';
+    if (isLocal) {
+        videoEl.muted = true; // Mute local video to prevent feedback
+    }
+
+    container.appendChild(videoEl);
+
+    const nameTag = document.createElement('div');
+    nameTag.className = 'absolute bottom-2 left-2 bg-black/50 text-white text-sm px-2 py-1 rounded-md';
+    nameTag.textContent = '...';
+    
+    db.collection('users').doc(userId).get().then(doc => {
+        if (doc.exists) {
+            nameTag.textContent = doc.data().displayName;
+        }
+    });
+
+    container.appendChild(nameTag);
+
+    if (isLocal) {
+        // Make local video draggable
+        container.classList.add('w-48', 'h-auto', 'absolute', 'bottom-24', 'right-4', 'z-40', 'cursor-move', 'shadow-lg');
+        makeDraggable(container);
+    }
+    
+    videoGrid.appendChild(container);
+    return videoEl;
+}
+
 const hangUpCurrentCall = async () => {
     if (activeDmCallData) {
         await hangUpDmCall();
@@ -1610,694 +1686,778 @@ const toggleCamera = () => {
 
 const setupDmCallListener = () => {
     if (dmCallListenerUnsubscribe) dmCallListenerUnsubscribe();
+    if (!currentUser) return;
     dmCallListenerUnsubscribe = db.collection('calls')
         .where('calleeId', '==', currentUser.uid)
         .where('status', '==', 'ringing')
         .onSnapshot(snapshot => {
             if (!snapshot.empty) {
                 const callDoc = snapshot.docs[0];
-                handleIncomingDmCall({ id: callDoc.id, ...callDoc.data() });
+                const callData = { id: callDoc.id, ...callDoc.data() };
+
+                // Don't show incoming call if already in a call or if it's from self
+                if (activeDmCallData || activeServerCall || callData.callerId === currentUser.uid) {
+                    return;
+                }
+
+                if (confirm(`${callData.callerName} is calling you. Answer?`)) {
+                    answerDmCall(callData);
+                } else {
+                    rejectDmCall(callData);
+                }
             }
         });
 };
 
-const handleIncomingDmCall = async (callData) => {
-    if (activeDmCallData || activeServerCall) {
-        const callRef = db.collection('calls').doc(callData.id);
-        await callRef.update({ status: 'declined' });
-        return;
-    }
-    activeDmCallData = callData;
-    const callerDoc = await db.collection('users').doc(callData.callerId).get();
-    const caller = callerDoc.data();
-    showDmCallUI('incoming', caller);
-
-    currentDmCallUnsubscribe = db.collection('calls').doc(callData.id).onSnapshot((snapshot) => {
-        if (!snapshot.exists || snapshot.data().status === 'ended') {
-            hangUpDmCall();
-        }
-    });
-};
-
 
 const startDmCall = async (friend) => {
-    if (activeDmCallData || activeServerCall) return alert("You are already in a call.");
+    if (activeServerCall || activeDmCallData) {
+        alert("You are already in another call.");
+        return;
+    }
+    const videoCallView = document.getElementById('video-call-view');
+    const videoGrid = document.getElementById('video-grid');
+    const videoCallControls = document.getElementById('video-call-controls');
+    const videoCallStatus = document.getElementById('video-call-status');
+
+    videoGrid.innerHTML = '';
+    videoCallView.style.display = 'flex';
+    videoCallStatus.style.display = 'flex';
+    videoCallStatus.innerHTML = `
+        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+        <p class="mt-4 text-lg">Calling ${friend.displayName}...</p>
+    `;
     
     try {
-        dmlocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        dmlocalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const localVideo = createVideoContainer(currentUser.uid, true);
+        localVideo.srcObject = dmlocalStream;
     } catch (error) {
         console.error("Could not get media devices:", error);
         alert("Camera and microphone access are required for video calls.");
+        videoCallView.style.display = 'none';
         return;
     }
-
-    const callRef = db.collection('calls').doc();
-    activeDmCallData = { 
-        id: callRef.id,
-        callerId: currentUser.uid,
-        calleeId: friend.id,
-        status: 'ringing'
-    };
     
-    showDmCallUI('outgoing', friend);
-
     dmPeerConnection = new RTCPeerConnection(iceServers);
     dmlocalStream.getTracks().forEach(track => dmPeerConnection.addTrack(track, dmlocalStream));
 
+    dmPeerConnection.ontrack = event => {
+        const remoteVideo = createVideoContainer(friend.id, false);
+        event.streams[0].getTracks().forEach(track => dmRemoteStream.addTrack(track));
+        remoteVideo.srcObject = dmRemoteStream;
+    };
+
+    const callDocRef = db.collection('calls').doc();
+    activeDmCallData = { id: callDocRef.id, calleeId: friend.id };
+
+    const offerCandidates = callDocRef.collection('offerCandidates');
+    const answerCandidates = callDocRef.collection('answerCandidates');
+
     dmPeerConnection.onicecandidate = event => {
         if (event.candidate) {
-            callRef.collection('callerCandidates').add(event.candidate.toJSON());
+            offerCandidates.add(event.candidate.toJSON());
         }
     };
     
-    dmPeerConnection.ontrack = event => {
-        const remoteVideo = document.getElementById(`video-remote-${friend.id}`);
-        if(remoteVideo) {
-            dmRemoteStream.addTrack(event.track);
-            if (remoteVideo.srcObject !== dmRemoteStream) {
-                remoteVideo.srcObject = dmRemoteStream;
-            }
-        }
-    };
-
     const offerDescription = await dmPeerConnection.createOffer();
     await dmPeerConnection.setLocalDescription(offerDescription);
 
-    const offer = { sdp: offerDescription.sdp, type: offerDescription.type };
+    const offer = {
+        sdp: offerDescription.sdp,
+        type: offerDescription.type,
+    };
     
-    await callRef.set({
-        ...activeDmCallData,
+    await callDocRef.set({
+        callerId: currentUser.uid,
+        callerName: currentUser.displayName,
+        calleeId: friend.id,
         offer,
+        status: 'ringing'
     });
     
-    currentDmCallUnsubscribe = callRef.onSnapshot(async snapshot => {
+    // Listen for call updates
+    currentDmCallUnsubscribe = callDocRef.onSnapshot(async (snapshot) => {
         const data = snapshot.data();
-        if (!data) return;
-        if (data.answer && !dmPeerConnection.currentRemoteDescription) {
+        if (data.status === 'answered' && !dmPeerConnection.currentRemoteDescription) {
+            videoCallStatus.style.display = 'none';
+            videoCallControls.style.display = 'flex';
             const answerDescription = new RTCSessionDescription(data.answer);
             await dmPeerConnection.setRemoteDescription(answerDescription);
-        }
-        if (data.status === 'connected' && activeDmCallData.status !== 'connected') {
-            activeDmCallData.status = 'connected';
-            const calleeDoc = await db.collection('users').doc(data.calleeId).get();
-            showDmCallUI('connected', calleeDoc.data());
+
+            // Listen for answer candidates
+            answerCandidates.onSnapshot(snapshot => {
+                snapshot.docChanges().forEach(change => {
+                    if (change.type === 'added') {
+                        const candidate = new RTCIceCandidate(change.doc.data());
+                        dmPeerConnection.addIceCandidate(candidate);
+                    }
+                });
+            });
         }
         if (data.status === 'declined' || data.status === 'ended') {
             await hangUpDmCall();
         }
     });
 
-    callRef.collection('calleeCandidates').onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === 'added') {
-                const candidate = new RTCIceCandidate(change.doc.data());
-                dmPeerConnection.addIceCandidate(candidate);
-            }
-        });
-    });
+    videoCallControls.innerHTML = `
+        <button id="toggle-mic-button" class="p-3 bg-gray-600/80 rounded-full hover:bg-gray-500/80" aria-label="Mute microphone">${MIC_ON_SVG}</button>
+        <button id="toggle-camera-button" class="p-3 bg-gray-600/80 rounded-full hover:bg-gray-500/80" aria-label="Turn off camera">${CAM_ON_SVG}</button>
+        <button id="hangup-dm-call-button" class="p-3 bg-red-500 rounded-full hover:bg-red-600">${HANGUP_SVG}</button>
+    `;
+    document.getElementById('toggle-mic-button').onclick = toggleMute;
+    document.getElementById('toggle-camera-button').onclick = toggleCamera;
+    document.getElementById('hangup-dm-call-button').onclick = hangUpDmCall;
 };
 
-const answerDmCall = async () => {
-    if (!activeDmCallData) return;
-    try {
-        dmlocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    } catch (error) {
-        console.error("Could not get media devices:", error);
-        alert("Camera and microphone access are required for video calls.");
+
+const answerDmCall = async (callData) => {
+    if (activeServerCall || activeDmCallData) {
+        // If already in a call, reject the new one
+        await db.collection('calls').doc(callData.id).update({ status: 'declined' });
         return;
     }
     
-    const callRef = db.collection('calls').doc(activeDmCallData.id);
-    const callerDoc = await db.collection('users').doc(activeDmCallData.callerId).get();
+    activeDmCallData = callData;
+    const callDocRef = db.collection('calls').doc(callData.id);
     
-    showDmCallUI('connected', callerDoc.data());
+    const videoCallView = document.getElementById('video-call-view');
+    const videoGrid = document.getElementById('video-grid');
+    const videoCallControls = document.getElementById('video-call-controls');
+    
+    videoGrid.innerHTML = '';
+    videoCallView.style.display = 'flex';
+    videoCallControls.style.display = 'flex';
+    
+    try {
+        dmlocalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const localVideo = createVideoContainer(currentUser.uid, true);
+        localVideo.srcObject = dmlocalStream;
+    } catch (error) {
+        console.error("Could not get media devices:", error);
+        alert("Camera and microphone access are required for video calls.");
+        await rejectDmCall(callData);
+        return;
+    }
 
     dmPeerConnection = new RTCPeerConnection(iceServers);
     dmlocalStream.getTracks().forEach(track => dmPeerConnection.addTrack(track, dmlocalStream));
+
+    dmPeerConnection.ontrack = event => {
+        const remoteVideo = createVideoContainer(callData.callerId, false);
+        event.streams[0].getTracks().forEach(track => dmRemoteStream.addTrack(track));
+        remoteVideo.srcObject = dmRemoteStream;
+    };
+    
+    const offerCandidates = callDocRef.collection('offerCandidates');
+    const answerCandidates = callDocRef.collection('answerCandidates');
     
     dmPeerConnection.onicecandidate = event => {
         if (event.candidate) {
-            callRef.collection('calleeCandidates').add(event.candidate.toJSON());
+            answerCandidates.add(event.candidate.toJSON());
         }
     };
     
-    dmPeerConnection.ontrack = event => {
-        const remoteVideo = document.getElementById(`video-remote-${activeDmCallData.callerId}`);
-        if(remoteVideo) {
-            dmRemoteStream.addTrack(event.track);
-            if (remoteVideo.srcObject !== dmRemoteStream) {
-                remoteVideo.srcObject = dmRemoteStream;
-            }
-        }
-    };
-
-    const callDoc = await callRef.get();
-    const offerDescription = new RTCSessionDescription(callDoc.data().offer);
-    await dmPeerConnection.setRemoteDescription(offerDescription);
-    
+    await dmPeerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
     const answerDescription = await dmPeerConnection.createAnswer();
     await dmPeerConnection.setLocalDescription(answerDescription);
-    
-    const answer = { type: answerDescription.type, sdp: answerDescription.sdp };
-    await callRef.update({ answer, status: 'connected' });
-    
-    if (currentDmCallUnsubscribe) currentDmCallUnsubscribe();
-    currentDmCallUnsubscribe = callRef.onSnapshot(snapshot => {
-        const data = snapshot.data();
-        if (data?.status === 'ended') {
-            hangUpDmCall();
-        }
-    });
 
-    callRef.collection('callerCandidates').onSnapshot(snapshot => {
+    const answer = {
+        type: answerDescription.type,
+        sdp: answerDescription.sdp,
+    };
+
+    await callDocRef.update({ answer, status: 'answered' });
+
+    offerCandidates.onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
             if (change.type === 'added') {
-                const candidate = new RTCIceCandidate(change.doc.data());
-                dmPeerConnection.addIceCandidate(candidate);
+                dmPeerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
             }
         });
     });
+
+    currentDmCallUnsubscribe = callDocRef.onSnapshot(async (snapshot) => {
+        const data = snapshot.data();
+        if (!data || data.status === 'ended') {
+            await hangUpDmCall();
+        }
+    });
+
+    videoCallControls.innerHTML = `
+        <button id="toggle-mic-button" class="p-3 bg-gray-600/80 rounded-full hover:bg-gray-500/80" aria-label="Mute microphone">${MIC_ON_SVG}</button>
+        <button id="toggle-camera-button" class="p-3 bg-gray-600/80 rounded-full hover:bg-gray-500/80" aria-label="Turn off camera">${CAM_ON_SVG}</button>
+        <button id="hangup-dm-call-button" class="p-3 bg-red-500 rounded-full hover:bg-red-600">${HANGUP_SVG}</button>
+    `;
+    document.getElementById('toggle-mic-button').onclick = toggleMute;
+    document.getElementById('toggle-camera-button').onclick = toggleCamera;
+    document.getElementById('hangup-dm-call-button').onclick = hangUpDmCall;
 };
 
-const declineDmCall = async () => {
-    if (!activeDmCallData) return;
-    const callRef = db.collection('calls').doc(activeDmCallData.id);
-    await callRef.update({ status: 'declined' });
-    await hangUpDmCall();
-};
-
-const showDmCallUI = (type, peer) => {
-    const videoCallView = document.getElementById('video-call-view');
-    const status = document.getElementById('video-call-status');
-    const controls = document.getElementById('video-call-controls');
-    const videoGrid = document.getElementById('video-grid');
-
-    videoCallView.classList.remove('hidden');
-    videoGrid.innerHTML = '';
-    const peerAvatar = isValidHttpUrl(peer.photoURL) ? peer.photoURL : DEFAULT_AVATAR_SVG;
-
-    if (type === 'outgoing') {
-        status.classList.remove('hidden');
-        status.style.display = 'flex';
-        status.innerHTML = `
-            <img src="${peerAvatar}" alt="${peer.displayName}" class="w-24 h-24 rounded-full mb-4 border-4 border-gray-700 object-cover animate-pulse">
-            <h3 class="text-2xl font-semibold">Calling ${peer.displayName}...</h3>
-            <p class="text-gray-300">Waiting for them to pick up.</p>
-        `;
-        controls.style.display = 'flex';
-        controls.innerHTML = `<button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>`;
-        document.getElementById('hang-up-button').onclick = hangUpDmCall;
-        
-        // Add local video
-        const localVideoContainer = createVideoContainer(currentUser.uid, currentUser.displayName, true);
-        localVideoContainer.querySelector('video').srcObject = dmlocalStream;
-        videoGrid.appendChild(localVideoContainer);
-
-    } else if (type === 'incoming') {
-        status.classList.remove('hidden');
-        status.style.display = 'flex';
-        status.innerHTML = `
-            <img src="${peerAvatar}" alt="${peer.displayName}" class="w-24 h-24 rounded-full mb-4 border-4 border-gray-700 object-cover">
-            <h3 class="text-2xl font-semibold">${peer.displayName} is calling...</h3>
-        `;
-        controls.style.display = 'flex';
-        controls.innerHTML = `
-            <button id="decline-call-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Decline">${HANGUP_SVG}</button>
-            <button id="answer-call-button" class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center hover:bg-green-600" aria-label="Answer">
-                <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path></svg>
-            </button>
-        `;
-        document.getElementById('decline-call-button').onclick = declineDmCall;
-        document.getElementById('answer-call-button').onclick = answerDmCall;
-
-    } else if (type === 'connected') {
-        status.style.display = 'none';
-        controls.style.display = 'flex';
-        controls.innerHTML = `
-            <button id="toggle-mic-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Mute microphone" data-muted="false">${MIC_ON_SVG}</button>
-            <button id="toggle-camera-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Turn off camera" data-enabled="true">${CAM_ON_SVG}</button>
-            <button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>
-        `;
-        document.getElementById('toggle-mic-button').onclick = toggleMute;
-        document.getElementById('toggle-camera-button').onclick = toggleCamera;
-        document.getElementById('hang-up-button').onclick = hangUpDmCall;
-        
-        // Add local and remote videos
-        const localVideoContainer = createVideoContainer(currentUser.uid, currentUser.displayName, true);
-        localVideoContainer.querySelector('video').srcObject = dmlocalStream;
-        videoGrid.appendChild(localVideoContainer);
-
-        const remoteVideoContainer = createVideoContainer(peer.id, peer.displayName, false);
-        videoGrid.appendChild(remoteVideoContainer);
-    }
+const rejectDmCall = async (callData) => {
+    const callDocRef = db.collection('calls').doc(callData.id);
+    await callDocRef.update({ status: 'declined' });
 };
 
 const hangUpDmCall = async () => {
-    if (dmPeerConnection) {
-        dmPeerConnection.close();
-        dmPeerConnection = null;
-    }
+    const videoCallView = document.getElementById('video-call-view');
+    videoCallView.style.display = 'none';
+    
     if (dmlocalStream) {
         dmlocalStream.getTracks().forEach(track => track.stop());
         dmlocalStream = null;
     }
-    dmRemoteStream = new MediaStream();
-    
-    const videoCallView = document.getElementById('video-call-view');
-    if (videoCallView) videoCallView.classList.add('hidden');
-    
+    if (dmPeerConnection) {
+        dmPeerConnection.close();
+        dmPeerConnection = null;
+    }
+    if (dmRemoteStream) {
+        dmRemoteStream = new MediaStream();
+    }
     if (currentDmCallUnsubscribe) {
         currentDmCallUnsubscribe();
         currentDmCallUnsubscribe = null;
     }
     
     if (activeDmCallData) {
-        const callRef = db.collection('calls').doc(activeDmCallData.id);
-        const callDoc = await callRef.get();
+        const callDocRef = db.collection('calls').doc(activeDmCallData.id);
+        const callDoc = await callDocRef.get();
         if (callDoc.exists && callDoc.data().status !== 'ended') {
-            await callRef.update({ status: 'ended' });
+            await callDocRef.update({ status: 'ended' });
         }
+        // Clean up candidates
+        const offerCandidates = await callDocRef.collection('offerCandidates').get();
+        offerCandidates.forEach(async (doc) => await doc.ref.delete());
+        const answerCandidates = await callDocRef.collection('answerCandidates').get();
+        answerCandidates.forEach(async (doc) => await doc.ref.delete());
+
         activeDmCallData = null;
     }
-};
-
-// =================================================================================
-// WebRTC Server (Multi-person) Call Functions
-// =================================================================================
-
-const joinServerCall = async (serverId, channelId) => {
-    if (activeDmCallData || activeServerCall) return alert("You are already in a call.");
-    
-    try {
-        serverLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    } catch (error) {
-        console.error("Could not get media devices:", error);
-        alert("Camera and microphone access are required for video calls.");
-        return;
-    }
-
-    activeServerCall = { serverId, channelId };
-    const callStatusRef = db.collection('servers').doc(serverId).collection('callStatus').doc(channelId);
-    
-    await callStatusRef.set({ participants: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) }, { merge: true });
-
-    showServerCallUI();
-    
-    // Listen for participants
-    const participantsUnsubscribe = callStatusRef.onSnapshot(async (doc) => {
-        const participants = doc.data()?.participants || [];
-        updateVideoGrid(participants);
-
-        const otherParticipants = participants.filter(p => p !== currentUser.uid);
-
-        // Connect to new participants
-        for (const peerId of otherParticipants) {
-            if (!serverPeerConnections[peerId]) {
-                createPeerConnectionForUser(peerId, serverId, channelId, true); // This user initiates
-            }
-        }
-        // Remove disconnected participants
-        for (const peerId in serverPeerConnections) {
-            if (!otherParticipants.includes(peerId)) {
-                serverPeerConnections[peerId].close();
-                delete serverPeerConnections[peerId];
-            }
-        }
-    });
-    serverCallUnsubscribes.push(participantsUnsubscribe);
-
-    // Listen for signaling messages (offers, answers, candidates)
-    const signalingRef = db.collection('servers').doc(serverId).collection('channels').doc(channelId).collection('signaling').doc(currentUser.uid);
-    const signalingUnsubscribe = signalingRef.onSnapshot(snapshot => {
-        snapshot.data()?.messages?.forEach(async msg => {
-            if (msg.offer && !serverPeerConnections[msg.from]) {
-                 createPeerConnectionForUser(msg.from, serverId, channelId, false, msg.offer);
-            }
-            if (msg.answer) {
-                serverPeerConnections[msg.from]?.setRemoteDescription(new RTCSessionDescription(msg.answer));
-            }
-            if (msg.candidate) {
-                serverPeerConnections[msg.from]?.addIceCandidate(new RTCIceCandidate(msg.candidate));
-            }
-        });
-        // Clear messages after processing
-        signalingRef.set({ messages: [] });
-    });
-    serverCallUnsubscribes.push(signalingUnsubscribe);
     updatePersistentCallBar();
 };
 
-const createPeerConnectionForUser = async (peerId, serverId, channelId, isInitiator, offer = null) => {
-    serverPeerConnections[peerId] = new RTCPeerConnection(iceServers);
-    const pc = serverPeerConnections[peerId];
+// =================================================================================
+// WebRTC Server Call Functions
+// =================================================================================
 
-    serverLocalStream.getTracks().forEach(track => pc.addTrack(track, serverLocalStream));
-
-    pc.onicecandidate = event => {
-        if (event.candidate) {
-            sendSignalingMessage(serverId, channelId, peerId, { candidate: event.candidate.toJSON() });
-        }
-    };
-
-    pc.ontrack = event => {
-        const remoteVideo = document.getElementById(`video-remote-${peerId}`);
-        if (remoteVideo) {
-            if (!remoteVideo.srcObject) {
-                remoteVideo.srcObject = new MediaStream();
-            }
-            remoteVideo.srcObject.addTrack(event.track);
-        }
-    };
-    
-    if (isInitiator) {
-        const offerDescription = await pc.createOffer();
-        await pc.setLocalDescription(offerDescription);
-        sendSignalingMessage(serverId, channelId, peerId, { offer: offerDescription });
-    } else {
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answerDescription = await pc.createAnswer();
-        await pc.setLocalDescription(answerDescription);
-        sendSignalingMessage(serverId, channelId, peerId, { answer: answerDescription });
+const joinServerCall = async (serverId, channelId) => {
+    if (activeDmCallData) {
+        alert("You are already in a DM call.");
+        return;
     }
-};
+    // If already in this server call, do nothing.
+    if (activeServerCall && activeServerCall.serverId === serverId && activeServerCall.channelId === channelId) {
+        // Just show the view again if it's hidden
+        document.getElementById('video-call-view').style.display = 'flex';
+        return;
+    }
+    // If in another server call, hang up first.
+    if (activeServerCall) {
+        await hangUpServerCall();
+    }
 
-const sendSignalingMessage = (serverId, channelId, toUserId, data) => {
-    const signalingRef = db.collection('servers').doc(serverId).collection('channels').doc(channelId).collection('signaling').doc(toUserId);
-    signalingRef.set({ 
-        messages: firebase.firestore.FieldValue.arrayUnion({ from: currentUser.uid, ...data }) 
-    }, { merge: true });
-};
-
-const showServerCallUI = () => {
     const videoCallView = document.getElementById('video-call-view');
-    const controls = document.getElementById('video-call-controls');
-    
-    document.getElementById('chat-view').style.display = 'none';
-    document.getElementById('placeholder-view').style.display = 'none';
-    videoCallView.classList.remove('hidden');
+    const videoGrid = document.getElementById('video-grid');
+    const videoCallControls = document.getElementById('video-call-controls');
 
-    controls.style.display = 'flex';
-    controls.innerHTML = `
-        <button id="toggle-mic-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Mute microphone" data-muted="false">${MIC_ON_SVG}</button>
-        <button id="toggle-camera-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Turn off camera" data-enabled="true">${CAM_ON_SVG}</button>
-        <button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>
+    videoGrid.innerHTML = '';
+    videoCallView.style.display = 'flex';
+    videoCallControls.style.display = 'flex';
+
+    activeServerCall = { serverId, channelId };
+
+    try {
+        serverLocalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const localVideo = createVideoContainer(currentUser.uid, true);
+        if (localVideo) localVideo.srcObject = serverLocalStream;
+    } catch (error) {
+        console.error("Could not get media devices:", error);
+        alert("Camera and microphone access are required for video calls.");
+        activeServerCall = null;
+        videoCallView.style.display = 'none';
+        return;
+    }
+
+    const callStatusRef = db.collection('servers').doc(serverId).collection('callStatus').doc(channelId);
+    await callStatusRef.set({
+        participants: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
+    }, { merge: true });
+
+    const signalingRef = callStatusRef.collection('signaling');
+
+    // Listen for other participants
+    const participantsUnsubscribe = callStatusRef.onSnapshot(async (snapshot) => {
+        const data = snapshot.data();
+        if (!data || !data.participants.includes(currentUser.uid)) {
+            // We were removed or left, so hang up
+            hangUpServerCall();
+            return;
+        }
+        
+        const participants = data.participants || [];
+        const otherParticipants = participants.filter(p => p !== currentUser.uid);
+
+        // Connect to new participants
+        otherParticipants.forEach(peerId => {
+            if (!serverPeerConnections[peerId]) {
+                // We initiate the connection if our ID is "smaller"
+                if (currentUser.uid < peerId) {
+                    const pc = createPeerConnection(peerId, signalingRef);
+                    serverPeerConnections[peerId] = pc;
+                    
+                    serverLocalStream.getTracks().forEach(track => pc.addTrack(track, serverLocalStream));
+
+                    pc.createOffer().then(offer => {
+                        pc.setLocalDescription(offer);
+                        signalingRef.doc(`${currentUser.uid}_to_${peerId}`).set({ offer });
+                    });
+                }
+            }
+        });
+
+        // Clean up disconnected peers
+        Object.keys(serverPeerConnections).forEach(peerId => {
+            if (!otherParticipants.includes(peerId)) {
+                serverPeerConnections[peerId].close();
+                delete serverPeerConnections[peerId];
+                const videoContainer = document.getElementById(`video-container-${peerId}`);
+                if (videoContainer) videoContainer.remove();
+            }
+        });
+    });
+    serverCallUnsubscribes.push(participantsUnsubscribe);
+
+    // Listen for signaling messages
+    const offersUnsubscribe = signalingRef.where('offer.type', '==', 'offer').onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+            const docId = change.doc.id;
+            const [callerId, calleeId] = docId.split('_to_');
+            if (calleeId === currentUser.uid && !serverPeerConnections[callerId]) {
+                const pc = createPeerConnection(callerId, signalingRef);
+                serverPeerConnections[callerId] = pc;
+                serverLocalStream.getTracks().forEach(track => pc.addTrack(track, serverLocalStream));
+                
+                pc.setRemoteDescription(new RTCSessionDescription(change.doc.data().offer));
+                pc.createAnswer().then(answer => {
+                    pc.setLocalDescription(answer);
+                    signalingRef.doc(`${currentUser.uid}_to_${callerId}`).set({ answer });
+                });
+            }
+        });
+    });
+    serverCallUnsubscribes.push(offersUnsubscribe);
+
+    const answersUnsubscribe = signalingRef.where('answer.type', '==', 'answer').onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+            const docId = change.doc.id;
+            const [answererId, originalCallerId] = docId.split('_to_');
+            if (originalCallerId === currentUser.uid && serverPeerConnections[answererId]) {
+                serverPeerConnections[answererId].setRemoteDescription(new RTCSessionDescription(change.doc.data().answer));
+            }
+        });
+    });
+    serverCallUnsubscribes.push(answersUnsubscribe);
+
+    const candidatesUnsubscribe = signalingRef.where('candidate', '!=', null).onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+             const docId = change.doc.id;
+             const [senderId, receiverId] = docId.split('_to_');
+             if (receiverId === currentUser.uid && serverPeerConnections[senderId]) {
+                serverPeerConnections[senderId].addIceCandidate(new RTCIceCandidate(change.doc.data().candidate));
+             }
+        });
+    });
+    serverCallUnsubscribes.push(candidatesUnsubscribe);
+    
+    updatePersistentCallBar();
+    videoCallControls.innerHTML = `
+        <button id="toggle-mic-button" class="p-3 bg-gray-600/80 rounded-full hover:bg-gray-500/80" aria-label="Mute microphone">${MIC_ON_SVG}</button>
+        <button id="toggle-camera-button" class="p-3 bg-gray-600/80 rounded-full hover:bg-gray-500/80" aria-label="Turn off camera">${CAM_ON_SVG}</button>
+        <button id="hangup-server-call-button" class="p-3 bg-red-500 rounded-full hover:bg-red-600">${HANGUP_SVG}</button>
     `;
     document.getElementById('toggle-mic-button').onclick = toggleMute;
     document.getElementById('toggle-camera-button').onclick = toggleCamera;
-    document.getElementById('hang-up-button').onclick = hangUpServerCall;
+    document.getElementById('hangup-server-call-button').onclick = hangUpServerCall;
 };
 
-const updateVideoGrid = (participants) => {
-    const videoGrid = document.getElementById('video-grid');
-    videoGrid.innerHTML = ''; // Clear grid
-
-    // Add self
-    const localVideoContainer = createVideoContainer(currentUser.uid, currentUser.displayName, true);
-    localVideoContainer.querySelector('video').srcObject = serverLocalStream;
-    videoGrid.appendChild(localVideoContainer);
-
-    // Add others
-    participants.filter(p => p !== currentUser.uid).forEach(peerId => {
-        const user = allServerUsers.find(u => u.id === peerId) || { displayName: 'Unknown User' };
-        const remoteVideoContainer = createVideoContainer(peerId, user.displayName, false);
-        videoGrid.appendChild(remoteVideoContainer);
-    });
-};
-
-const createVideoContainer = (userId, displayName, isLocal) => {
-    const container = document.createElement('div');
-    container.className = 'relative bg-gray-800 rounded-lg overflow-hidden aspect-video';
-    container.innerHTML = `
-        <video id="video-${isLocal ? 'local' : 'remote'}-${userId}" autoplay playsinline class="w-full h-full object-cover" ${isLocal ? 'muted' : ''}></video>
-        <div class="absolute bottom-2 left-2 bg-black/50 text-white text-sm px-2 py-1 rounded-md">${displayName}</div>
-    `;
-    return container;
-};
+const createPeerConnection = (peerId, signalingRef) => {
+    const pc = new RTCPeerConnection(iceServers);
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            signalingRef.doc(`${currentUser.uid}_to_${peerId}`).set({ candidate: event.candidate.toJSON() }, { merge: true });
+        }
+    };
+    pc.ontrack = (event) => {
+        let remoteStream = new MediaStream();
+        const remoteVideo = createVideoContainer(peerId, false);
+        if (remoteVideo) {
+            event.streams[0].getTracks().forEach(track => remoteStream.addTrack(track));
+            remoteVideo.srcObject = remoteStream;
+        }
+    };
+    return pc;
+}
 
 const hangUpServerCall = async () => {
-    if (!activeServerCall) return;
-    const { serverId, channelId } = activeServerCall;
+    const videoCallView = document.getElementById('video-call-view');
+    videoCallView.style.display = 'none';
 
-    const callStatusRef = db.collection('servers').doc(serverId).collection('callStatus').doc(channelId);
-    await callStatusRef.update({ participants: firebase.firestore.FieldValue.arrayRemove(currentUser.uid) });
+    if (activeServerCall) {
+        const { serverId, channelId } = activeServerCall;
+        const callStatusRef = db.collection('servers').doc(serverId).collection('callStatus').doc(channelId);
+        await callStatusRef.update({
+            participants: firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
+        });
 
-    serverCallUnsubscribes.forEach(unsub => unsub());
-    serverCallUnsubscribes = [];
-    
-    Object.values(serverPeerConnections).forEach(pc => pc.close());
-    serverPeerConnections = {};
+        const signalingRef = callStatusRef.collection('signaling');
+        const docsToDelete = await signalingRef.get();
+        docsToDelete.forEach(doc => {
+            if (doc.id.startsWith(currentUser.uid) || doc.id.endsWith(currentUser.uid)) {
+                doc.ref.delete();
+            }
+        });
+    }
 
     if (serverLocalStream) {
         serverLocalStream.getTracks().forEach(track => track.stop());
         serverLocalStream = null;
     }
 
+    Object.values(serverPeerConnections).forEach(pc => pc.close());
+    serverPeerConnections = {};
+    
+    serverCallUnsubscribes.forEach(unsub => unsub());
+    serverCallUnsubscribes = [];
+    
     activeServerCall = null;
-
-    const videoCallView = document.getElementById('video-call-view');
-    videoCallView.classList.add('hidden');
-
-    if (activeChannelId === channelId) {
-        selectChannel(channelId); // Re-render chat view
-    }
     updatePersistentCallBar();
 };
 
-const updatePersistentCallBar = () => {
+const updatePersistentCallBar = async () => {
     const bar = document.getElementById('persistent-call-bar');
-    const videoCallView = document.getElementById('video-call-view');
+    if (!bar) return;
 
-    if (activeServerCall && videoCallView.classList.contains('hidden')) {
-        bar.classList.remove('hidden');
-        bar.innerHTML = `
-            <div class="text-sm text-white font-semibold">
-                <p>Voice Connected</p>
-                <p class="text-xs text-gray-400">#${activeChannelId}</p>
-            </div>
-            <div class="flex items-center space-x-2">
-                 <button id="rejoin-call-button" class="p-1 text-gray-300 hover:text-white"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"></path></svg></button>
-                 <button id="persistent-hangup-button" class="p-1 text-red-400 hover:text-red-300"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button>
-            </div>
-        `;
-        bar.querySelector('#persistent-hangup-button').onclick = hangUpServerCall;
-        bar.querySelector('#rejoin-call-button').onclick = () => {
-            document.getElementById('chat-view').style.display = 'none';
-            document.getElementById('placeholder-view').style.display = 'none';
-            videoCallView.classList.remove('hidden');
-            updatePersistentCallBar();
-        };
-
+    if (activeServerCall) {
+        const { serverId, channelId } = activeServerCall;
+        const serverDoc = await db.collection('servers').doc(serverId).get();
+        const channelDoc = await db.collection('servers').doc(serverId).collection('channels').doc(channelId).get();
+        
+        if (serverDoc.exists && channelDoc.exists) {
+            bar.innerHTML = `
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>
+                    <div class="truncate">
+                         <p class="text-sm font-semibold text-white truncate">Voice Connected</p>
+                         <p class="text-xs text-gray-400 truncate">${channelDoc.data().name} / ${serverDoc.data().name}</p>
+                    </div>
+                </div>
+                <button id="disconnect-persistent-call" class="text-gray-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                </button>
+            `;
+            bar.style.display = 'block';
+            document.getElementById('disconnect-persistent-call').onclick = hangUpServerCall;
+            bar.onclick = (e) => {
+                if(e.target.id !== 'disconnect-persistent-call' && !e.target.closest('#disconnect-persistent-call')) {
+                     document.getElementById('video-call-view').style.display = 'flex';
+                }
+            };
+        }
     } else {
-        bar.classList.add('hidden');
+        bar.style.display = 'none';
+        bar.innerHTML = '';
     }
 }
 
-
 // =================================================================================
-// Event Listeners
+// Event Listeners Setup
 // =================================================================================
-
-// Login/Auth
-document.getElementById('login-button').addEventListener('click', signInWithGoogle);
-document.getElementById('signup-form').addEventListener('submit', handleSignUp);
-document.getElementById('signin-form').addEventListener('submit', handleSignIn);
-document.getElementById('show-signin-link').addEventListener('click', (e) => {
+document.addEventListener('DOMContentLoaded', () => {
+  // Login/Auth
+  document.getElementById('login-button').addEventListener('click', signInWithGoogle);
+  document.getElementById('signup-form').addEventListener('submit', handleSignUp);
+  document.getElementById('signin-form').addEventListener('submit', handleSignIn);
+  document.getElementById('show-signin-link').addEventListener('click', (e) => {
     e.preventDefault();
     document.getElementById('signup-form').classList.add('hidden');
     document.getElementById('signin-form').classList.remove('hidden');
     clearLoginError();
-});
-document.getElementById('show-signup-link').addEventListener('click', (e) => {
+  });
+  document.getElementById('show-signup-link').addEventListener('click', (e) => {
     e.preventDefault();
     document.getElementById('signin-form').classList.add('hidden');
     document.getElementById('signup-form').classList.remove('hidden');
     clearLoginError();
-});
-document.querySelectorAll('.signout-button').forEach(btn => btn.addEventListener('click', signOut));
+  });
+  
+  // Signout (using event delegation for multiple buttons)
+  document.body.addEventListener('click', (e) => {
+      if (e.target.closest('.signout-button')) {
+          signOut();
+      }
+  });
 
-// Main App
-document.querySelectorAll('.user-info-panel').forEach(panel => panel.addEventListener('click', () => {
-    const modal = document.getElementById('my-profile-modal');
-    const usernameInput = document.getElementById('profile-username-input');
-    const avatarInput = document.getElementById('profile-avatar-input');
-    const friendCodeDisplay = document.getElementById('friend-code-display');
-    if (modal && usernameInput && avatarInput && friendCodeDisplay) {
-        usernameInput.value = currentUser.displayName;
-        avatarInput.value = currentUser.photoURL;
-        friendCodeDisplay.textContent = currentUser.uid;
-        modal.style.display = 'flex';
-    }
-}));
-document.getElementById('close-my-profile-modal').addEventListener('click', () => {
-    document.getElementById('my-profile-modal').style.display = 'none';
-});
-document.getElementById('profile-form').addEventListener('submit', handleUpdateProfile);
+  // Modals
+  document.getElementById('add-server-form').addEventListener('submit', handleCreateServer);
+  document.getElementById('cancel-add-server').addEventListener('click', () => {
+    document.getElementById('add-server-modal').style.display = 'none';
+  });
+  
+  // My Profile Modal
+  document.body.addEventListener('click', (e) => {
+      if (e.target.closest('.user-info-panel')) {
+            const modal = document.getElementById('my-profile-modal');
+            const usernameInput = document.getElementById('profile-username-input');
+            const avatarInput = document.getElementById('profile-avatar-input');
+            const friendCodeDisplay = document.getElementById('friend-code-display');
 
-// Chat
-document.getElementById('message-form').addEventListener('submit', handleSendMessage);
-document.getElementById('add-friend-form').addEventListener('submit', handleAddFriend);
-document.getElementById('message-input').addEventListener('input', (e) => {
-    const sendButton = document.getElementById('send-button');
-    sendButton.disabled = !e.target.value.trim() && !stagedFile;
-});
+            if (modal && currentUser) {
+                usernameInput.value = currentUser.displayName;
+                avatarInput.value = currentUser.photoURL;
+                friendCodeDisplay.textContent = currentUser.uid;
+                modal.style.display = 'flex';
+            }
+      }
+  });
+  document.getElementById('close-my-profile-modal').addEventListener('click', () => {
+      document.getElementById('my-profile-modal').style.display = 'none';
+  });
+  document.getElementById('profile-form').addEventListener('submit', handleUpdateProfile);
 
-// File Upload
-document.getElementById('attach-file-button').addEventListener('click', () => document.getElementById('file-upload-input').click());
-document.getElementById('file-upload-input').addEventListener('change', handleFileSelect);
-document.getElementById('cancel-file-preview').addEventListener('click', cancelFilePreview);
-
-// Modals
-document.getElementById('cancel-add-server').addEventListener('click', () => document.getElementById('add-server-modal').style.display = 'none');
-document.getElementById('add-server-form').addEventListener('submit', handleCreateServer);
-
-document.getElementById('cancel-create-channel').addEventListener('click', () => document.getElementById('create-channel-modal').style.display = 'none');
-document.getElementById('create-channel-form').addEventListener('submit', handleCreateChannel);
-
-document.getElementById('server-options-button').addEventListener('click', (e) => {
-    e.stopPropagation();
-    document.getElementById('server-options-dropdown').classList.toggle('hidden');
-});
-document.getElementById('invite-button').addEventListener('click', () => {
-    const modal = document.getElementById('invite-modal');
-    document.getElementById('invite-server-name').textContent = document.getElementById('server-name-text').textContent;
-    document.getElementById('friend-code-input').value = '';
-    document.getElementById('invite-status-message').textContent = '';
-    if(modal) modal.style.display = 'flex';
-});
-document.getElementById('cancel-invite-button').addEventListener('click', () => document.getElementById('invite-modal').style.display = 'none');
-document.getElementById('invite-form').addEventListener('submit', handleInviteFriend);
-document.getElementById('leave-server-button').addEventListener('click', handleLeaveServer);
-
-// Server/User profile clicks
-document.getElementById('chat-panel').addEventListener('click', (e) => {
-    const userId = e.target.dataset.userid;
-    if (userId) {
-        showUserProfile(userId);
-    }
-});
-document.getElementById('home-view').addEventListener('click', (e) => {
-    const userId = e.target.dataset.userid;
-    if (userId) {
-        showUserProfile(userId);
-    }
-});
-document.getElementById('close-user-profile-modal').addEventListener('click', () => {
-    document.getElementById('user-profile-modal').style.display = 'none';
-});
-
-// Settings Modal
-document.querySelectorAll('.settings-button').forEach(btn => btn.addEventListener('click', () => {
-    document.getElementById('settings-modal').style.display = 'flex';
-}));
-document.getElementById('close-settings-modal').addEventListener('click', () => {
-    document.getElementById('settings-modal').style.display = 'none';
-});
-document.getElementById('open-server-settings-button').addEventListener('click', () => {
-    document.getElementById('server-settings-modal').style.display = 'flex';
-});
-document.getElementById('close-server-settings-modal').addEventListener('click', () => {
-    document.getElementById('server-settings-modal').style.display = 'none';
-});
-
-// Server Settings Navigation
-document.querySelectorAll('.server-settings-nav-button').forEach(button => {
-    button.addEventListener('click', () => {
-        const sectionId = button.dataset.section;
-        document.querySelectorAll('.server-settings-section').forEach(section => {
-            section.classList.toggle('hidden', section.id !== sectionId);
-        });
-        document.querySelectorAll('.server-settings-nav-button').forEach(btn => {
-            btn.classList.toggle('bg-gray-700', btn === button);
-            btn.classList.toggle('text-white', btn === button);
-        });
-    });
-});
-document.getElementById('server-overview-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const newName = document.getElementById('server-settings-name-input').value.trim();
-    if (newName && activeServerId) {
-        await db.collection('servers').doc(activeServerId).update({ name: newName });
-        const statusEl = document.getElementById('server-settings-status');
-        statusEl.textContent = 'Saved!';
-        setTimeout(() => { statusEl.textContent = ''; }, 2000);
-    }
-});
-document.getElementById('create-role-form').addEventListener('submit', handleCreateRole);
-
-// Global click listener to close dropdowns
-document.addEventListener('click', (e) => {
-    if (!document.getElementById('server-options-button').contains(e.target)) {
-        document.getElementById('server-options-dropdown').classList.add('hidden');
-    }
-    if (!document.getElementById('emoji-button').contains(e.target)) {
-        document.getElementById('emoji-picker').classList.add('hidden');
-    }
-});
-
-// Roles Drag and Drop
-const rolesList = document.getElementById('roles-list');
-rolesList.addEventListener('dragstart', (e) => {
-    draggedRoleId = e.target.dataset.roleId;
-    e.target.classList.add('role-dragging');
-});
-rolesList.addEventListener('dragend', (e) => {
-    e.target.classList.remove('role-dragging');
-    draggedRoleId = null;
-});
-rolesList.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    const target = e.target.closest('[data-role-id]');
-    if (target && target.dataset.roleId !== draggedRoleId) {
-        const rect = target.getBoundingClientRect();
-        const next = (e.clientY - rect.top) / rect.height > 0.5;
-        const draggedEl = rolesList.querySelector(`[data-role-id="${draggedRoleId}"]`);
-        if (next) {
-            target.parentNode.insertBefore(draggedEl, target.nextSibling);
-        } else {
-            target.parentNode.insertBefore(draggedEl, target);
-        }
-    }
-});
-rolesList.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    const newRoleOrder = Array.from(rolesList.children).map(child => child.dataset.roleId);
-    activeServerRoleOrder = newRoleOrder;
-    await db.collection('servers').doc(activeServerId).update({ roleOrder: newRoleOrder });
-});
-
-// Member role checkbox handler
-document.getElementById('server-members-list').addEventListener('change', async (e) => {
-    if (e.target.type === 'checkbox') {
+  // User Profile Modal (for others)
+   document.getElementById('chat-panel').addEventListener('click', (e) => {
         const userId = e.target.dataset.userid;
-        const roleId = e.target.dataset.roleid;
-        const isChecked = e.target.checked;
-        
-        const memberRef = db.collection('servers').doc(activeServerId).collection('members').doc(userId);
-        if (isChecked) {
-            await memberRef.update({ roles: firebase.firestore.FieldValue.arrayUnion(roleId) });
-        } else {
-            await memberRef.update({ roles: firebase.firestore.FieldValue.arrayRemove(roleId) });
+        if (userId) {
+            showUserProfile(userId);
         }
-    }
-});
+    });
+   document.getElementById('close-user-profile-modal').addEventListener('click', () => {
+        document.getElementById('user-profile-modal').style.display = 'none';
+    });
 
-// Emoji picker
-const emojiPicker = document.getElementById('emoji-picker');
-const emojiButton = document.getElementById('emoji-button');
-const messageInput = document.getElementById('message-input');
-EMOJIS.forEach(emoji => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'text-2xl rounded-md hover:bg-gray-700';
-    btn.textContent = emoji;
-    btn.onclick = () => {
-        messageInput.value += emoji;
-        messageInput.focus();
-        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-    };
-    emojiPicker.appendChild(btn);
-});
-emojiButton.addEventListener('click', (e) => {
-    e.stopPropagation();
-    emojiPicker.classList.toggle('hidden');
+  // Settings Modal
+  document.body.addEventListener('click', (e) => {
+      if (e.target.closest('.settings-button')) {
+            document.getElementById('settings-modal').style.display = 'flex';
+      }
+  });
+  document.getElementById('close-settings-modal').addEventListener('click', () => {
+        document.getElementById('settings-modal').style.display = 'none';
+  });
+  
+  // Settings Navigation
+  const settingsNavButtons = document.querySelectorAll('.settings-nav-button');
+  const settingsSections = document.querySelectorAll('.settings-section');
+  settingsNavButtons.forEach(button => {
+      button.addEventListener('click', () => {
+          const sectionId = button.dataset.section;
+          settingsSections.forEach(section => {
+              section.style.display = section.id === sectionId ? 'block' : 'none';
+          });
+          settingsNavButtons.forEach(btn => {
+              btn.classList.toggle('bg-gray-700', btn === button);
+              btn.classList.toggle('text-white', btn === button);
+          });
+      });
+  });
+
+  // Server Settings Navigation
+  const serverSettingsNavButtons = document.querySelectorAll('.server-settings-nav-button');
+  const serverSettingsSections = document.querySelectorAll('.server-settings-section');
+  serverSettingsNavButtons.forEach(button => {
+      button.addEventListener('click', () => {
+          const sectionId = button.dataset.section;
+          serverSettingsSections.forEach(section => {
+              section.classList.toggle('hidden', section.id !== sectionId);
+          });
+          serverSettingsNavButtons.forEach(btn => {
+              btn.classList.toggle('bg-gray-700', btn === button);
+              btn.classList.toggle('text-white', btn === button);
+          });
+      });
+  });
+
+  // Theme Settings
+  const themeOptions = document.querySelectorAll('.theme-option');
+  themeOptions.forEach(option => {
+      option.addEventListener('click', () => {
+          const theme = option.dataset.theme;
+          document.body.className = theme === 'light' ? 'theme-light bg-gray-100 text-gray-900 font-sans' : 'bg-gray-900 text-gray-100 font-sans';
+          localStorage.setItem('theme', theme);
+      });
+  });
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme) {
+       document.body.className = savedTheme === 'light' ? 'theme-light bg-gray-100 text-gray-900 font-sans' : 'bg-gray-900 text-gray-100 font-sans';
+  }
+  
+  // Custom Color Theme
+    const customBgColorInput = document.getElementById('custom-bg-color');
+    const customTextColorInput = document.getElementById('custom-text-color');
+    const customAccentColorInput = document.getElementById('custom-accent-color');
+    function applyCustomColors() {
+        document.documentElement.style.setProperty('--color-gray-800', customBgColorInput.value);
+        document.documentElement.style.setProperty('--color-text-primary', customTextColorInput.value);
+        document.documentElement.style.setProperty('--color-bg-button', customAccentColorInput.value);
+    }
+    customBgColorInput.addEventListener('input', applyCustomColors);
+    customTextColorInput.addEventListener('input', applyCustomColors);
+    customAccentColorInput.addEventListener('input', applyCustomColors);
+
+
+  // Create Channel Modal
+  document.getElementById('create-channel-form').addEventListener('submit', handleCreateChannel);
+  document.getElementById('cancel-create-channel').addEventListener('click', () => {
+      document.getElementById('create-channel-modal').style.display = 'none';
+  });
+
+  // Server Options Dropdown
+  const serverOptionsButton = document.getElementById('server-options-button');
+  const serverOptionsDropdown = document.getElementById('server-options-dropdown');
+  serverOptionsButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      serverOptionsDropdown.classList.toggle('hidden');
+  });
+  document.addEventListener('click', (e) => {
+      if (!serverOptionsButton.contains(e.target)) {
+          serverOptionsDropdown.classList.add('hidden');
+      }
+  });
+  document.getElementById('leave-server-button').addEventListener('click', handleLeaveServer);
+  document.getElementById('invite-button').addEventListener('click', () => {
+      const modal = document.getElementById('invite-modal');
+      const serverNameEl = document.getElementById('invite-server-name');
+      const serverNameText = document.getElementById('server-name-text').textContent;
+      serverNameEl.textContent = serverNameText;
+      modal.style.display = 'flex';
+  });
+  document.getElementById('open-server-settings-button').addEventListener('click', () => {
+    document.getElementById('server-settings-modal').style.display = 'flex';
+  });
+
+
+  // Invite Modal
+  document.getElementById('invite-form').addEventListener('submit', handleInviteFriend);
+  document.getElementById('cancel-invite-button').addEventListener('click', () => {
+      document.getElementById('invite-modal').style.display = 'none';
+  });
+
+  // Server Settings Modal
+  document.getElementById('close-server-settings-modal').addEventListener('click', () => {
+      document.getElementById('server-settings-modal').style.display = 'none';
+  });
+  document.getElementById('server-overview-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newName = document.getElementById('server-settings-name-input').value.trim();
+      const statusEl = document.getElementById('server-settings-status');
+      if (newName && activeServerId) {
+          await db.collection('servers').doc(activeServerId).update({ name: newName });
+          document.getElementById('server-name-text').textContent = newName;
+          statusEl.textContent = 'Saved!';
+          setTimeout(() => statusEl.textContent = '', 2000);
+      }
+  });
+
+  // Roles Management
+  document.getElementById('create-role-form').addEventListener('submit', handleCreateRole);
+  
+  const rolesList = document.getElementById('roles-list');
+  if (rolesList) {
+    rolesList.addEventListener('dragstart', (e) => {
+        draggedRoleId = e.target.dataset.roleId;
+        e.target.classList.add('role-dragging');
+    });
+    rolesList.addEventListener('dragend', (e) => {
+        e.target.classList.remove('role-dragging');
+        draggedRoleId = null;
+    });
+    rolesList.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const targetRoleEl = e.target.closest('[data-role-id]');
+        if (targetRoleEl && targetRoleEl.dataset.roleId !== draggedRoleId) {
+            const rect = targetRoleEl.getBoundingClientRect();
+            const isAfter = e.clientY > rect.top + rect.height / 2;
+            if (isAfter) {
+                targetRoleEl.parentNode.insertBefore(document.querySelector(`[data-role-id="${draggedRoleId}"]`), targetRoleEl.nextSibling);
+            } else {
+                targetRoleEl.parentNode.insertBefore(document.querySelector(`[data-role-id="${draggedRoleId}"]`), targetRoleEl);
+            }
+        }
+    });
+    rolesList.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const newRoleOrder = Array.from(rolesList.children).map(el => el.dataset.roleId);
+        await db.collection('servers').doc(activeServerId).update({ roleOrder: newRoleOrder });
+    });
+  }
+
+  // Members Management (Role Assignment)
+  document.getElementById('server-members-list').addEventListener('change', async (e) => {
+      if (e.target.type === 'checkbox') {
+          const userId = e.target.dataset.userid;
+          const roleId = e.target.dataset.roleid;
+          const memberRef = db.collection('servers').doc(activeServerId).collection('members').doc(userId);
+          if (e.target.checked) {
+              await memberRef.update({ roles: firebase.firestore.FieldValue.arrayUnion(roleId) });
+          } else {
+              await memberRef.update({ roles: firebase.firestore.FieldValue.arrayRemove(roleId) });
+          }
+      }
+  });
+
+
+  // Friend Management
+  document.getElementById('add-friend-form').addEventListener('submit', handleAddFriend);
+
+  // Messaging
+  document.getElementById('message-form').addEventListener('submit', handleSendMessage);
+  const messageInput = document.getElementById('message-input');
+  const sendButton = document.getElementById('send-button');
+  sendButton.disabled = true;
+  messageInput.addEventListener('input', () => {
+    sendButton.disabled = !messageInput.value.trim() && !stagedFile;
+  });
+
+  // File Attachments
+  document.getElementById('attach-file-button').addEventListener('click', () => {
+      document.getElementById('file-upload-input').click();
+  });
+  document.getElementById('file-upload-input').addEventListener('change', handleFileSelect);
+  document.getElementById('cancel-file-preview').addEventListener('click', cancelFilePreview);
+
+  // Emoji Picker
+  const emojiPicker = document.getElementById('emoji-picker');
+  const emojiButton = document.getElementById('emoji-button');
+  emojiPicker.innerHTML = EMOJIS.map(emoji => `<button class="text-2xl p-1 rounded-md hover:bg-gray-700">${emoji}</button>`).join('');
+  
+  emojiPicker.addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') {
+          messageInput.value += e.target.textContent;
+          messageInput.focus();
+          messageInput.dispatchEvent(new Event('input'));
+      }
+  });
+
+  emojiButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      emojiPicker.classList.toggle('hidden');
+  });
+
+  document.addEventListener('click', (e) => {
+      if (!emojiButton.contains(e.target)) {
+          emojiPicker.classList.add('hidden');
+      }
+  });
+
+   // Hide video call view when navigating away via ESC key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const videoCallView = document.getElementById('video-call-view');
+            // Don't hang up server calls, just hide the view
+            if (activeServerCall) {
+                videoCallView.style.display = 'none';
+            }
+        }
+    });
+
 });
