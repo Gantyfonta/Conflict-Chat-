@@ -361,6 +361,7 @@ let serversUnsubscribe = () => {};
 let friendsUnsubscribe = () => {};
 let callListenerUnsubscribe = () => {};
 let currentCallUnsubscribe = () => {};
+let invitationsUnsubscribe = () => {};
 
 
 // WebRTC State
@@ -400,12 +401,12 @@ auth.onAuthStateChanged(async (user) => {
           await user.updateProfile({ displayName, photoURL });
         }
         
-        await userDocRef.set({ displayName, photoURL, status: 'online', friends: [] });
-        currentUser = { uid: user.uid, displayName, photoURL, email: user.email };
+        await userDocRef.set({ displayName, photoURL, status: 'online', friends: [], blockedUsers: [] });
+        currentUser = { uid: user.uid, displayName, photoURL, email: user.email, blockedUsers: [] };
       } else {
         await userDocRef.update({ status: 'online' });
         const userData = userDoc.data();
-        currentUser = { uid: user.uid, displayName: userData.displayName, photoURL: userData.photoURL, email: user.email };
+        currentUser = { uid: user.uid, displayName: userData.displayName, photoURL: userData.photoURL, email: user.email, blockedUsers: userData.blockedUsers || [] };
       }
       
       loginView.classList.add('hidden');
@@ -415,6 +416,7 @@ auth.onAuthStateChanged(async (user) => {
       loadFriends();
       setupPresence();
       setupCallListener();
+      setupInvitationsListener();
       selectHome(); // Default to home view on login
 
       if (localStorage.getItem('adsEnabled') === 'true') {
@@ -454,6 +456,7 @@ auth.onAuthStateChanged(async (user) => {
     if(friendsUnsubscribe) friendsUnsubscribe();
     if(callListenerUnsubscribe) callListenerUnsubscribe();
     if(currentCallUnsubscribe) currentCallUnsubscribe();
+    if(invitationsUnsubscribe) invitationsUnsubscribe();
     await hangUp();
   }
 });
@@ -738,6 +741,15 @@ const renderMessages = (messages) => {
     };
 
     messages.forEach(msg => {
+        if (currentUser.blockedUsers?.includes(msg.user.uid)) {
+            const blockedMessageEl = document.createElement('div');
+            blockedMessageEl.className = 'px-4 py-1 text-xs text-gray-500 italic hover:bg-gray-800/50 pl-14';
+            blockedMessageEl.textContent = 'Blocked Message';
+            messageList.appendChild(blockedMessageEl);
+            lastMessageUid = null; // Break message grouping
+            return;
+        }
+
         const messageEl = document.createElement('div');
         const currentTimestamp = msg.timestamp ? msg.timestamp.toDate() : new Date();
 
@@ -880,6 +892,82 @@ const renderServerMembers = () => {
     });
 };
 
+const renderInvitations = (invites) => {
+    const container = document.getElementById('pending-tab-panel');
+    const badge = document.getElementById('pending-invites-badge');
+    if (!container || !badge) return;
+
+    if (invites.length > 0) {
+        badge.textContent = invites.length;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+
+    const friendInvites = invites.filter(i => i.type === 'friend');
+    const serverInvites = invites.filter(i => i.type === 'server');
+
+    let html = `<h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase px-2 pt-2 pb-1">Pending Invites — ${invites.length}</h2>`;
+    
+    if (friendInvites.length > 0) {
+        html += `<h3 class="text-sm font-semibold text-gray-300 px-2 pt-2">Friend Requests</h3>`;
+        friendInvites.forEach(invite => {
+            html += `
+                <div class="flex items-center justify-between p-2 rounded-md hover:bg-gray-700/50">
+                    <span class="font-medium text-white">${escapeHTML(invite.fromName)}</span>
+                    <div>
+                        <button class="accept-invite-btn w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center mr-1" data-invite-id="${invite.id}" aria-label="Accept">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        </button>
+                        <button class="decline-invite-btn w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center" data-invite-id="${invite.id}" aria-label="Decline">
+                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                </div>`;
+        });
+    }
+
+    if (serverInvites.length > 0) {
+        html += `<h3 class="text-sm font-semibold text-gray-300 px-2 pt-2">Server Invites</h3>`;
+        serverInvites.forEach(invite => {
+             const iconUrl = isValidHttpUrl(invite.serverIcon) ? invite.serverIcon : DEFAULT_AVATAR_SVG;
+            html += `
+                <div class="flex items-center justify-between p-2 rounded-md hover:bg-gray-700/50">
+                    <div class="flex items-center truncate">
+                       <img src="${iconUrl}" class="w-8 h-8 rounded-full mr-2 object-cover">
+                       <div class="truncate">
+                           <p class="font-medium text-white truncate">${escapeHTML(invite.serverName)}</p>
+                           <p class="text-xs text-gray-400 truncate">from ${escapeHTML(invite.fromName)}</p>
+                       </div>
+                    </div>
+                    <div>
+                        <button class="accept-invite-btn w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center mr-1" data-invite-id="${invite.id}" aria-label="Accept">
+                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        </button>
+                        <button class="decline-invite-btn w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center" data-invite-id="${invite.id}" aria-label="Decline">
+                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                </div>`;
+        });
+    }
+    
+    if (invites.length === 0) {
+        html += `<p class="text-sm text-gray-400 px-2 pt-2">You have no pending invites.</p>`;
+    }
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.accept-invite-btn').forEach(btn => {
+        btn.onclick = () => {
+            const invite = invites.find(i => i.id === btn.dataset.inviteId);
+            handleAcceptInvite(invite.id, invite);
+        };
+    });
+    container.querySelectorAll('.decline-invite-btn').forEach(btn => {
+        btn.onclick = () => handleDeclineInvite(btn.dataset.inviteId);
+    });
+};
 
 // =================================================================================
 // Data Handling & State Management
@@ -950,6 +1038,18 @@ const loadFriends = () => {
             }
         }
     });
+};
+
+const setupInvitationsListener = () => {
+    if (invitationsUnsubscribe) invitationsUnsubscribe();
+    if (!currentUser) return;
+    invitationsUnsubscribe = db.collection('invitations')
+        .where('toId', '==', currentUser.uid)
+        .where('status', '==', 'pending')
+        .onSnapshot((snapshot) => {
+            const invites = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderInvitations(invites);
+        }, (error) => console.error("Error fetching invitations:", error));
 };
 
 
@@ -1423,10 +1523,20 @@ const handleAddFriend = async (e) => {
     const addFriendInput = document.getElementById('add-friend-input');
     const addFriendStatus = document.getElementById('add-friend-status');
     const friendId = addFriendInput.value.trim();
-    if (!friendId || friendId === currentUser.uid) return;
-
+    
     addFriendStatus.textContent = '...';
     addFriendStatus.className = 'text-xs mt-1 h-3 text-gray-400';
+
+    if (!friendId || friendId === currentUser.uid) {
+        addFriendStatus.textContent = 'Invalid Friend Code.';
+        addFriendStatus.className = 'text-xs mt-1 h-3 text-red-400';
+        return;
+    }
+    if (currentUser.blockedUsers?.includes(friendId)) {
+        addFriendStatus.textContent = 'You cannot add a blocked user.';
+        addFriendStatus.className = 'text-xs mt-1 h-3 text-red-400';
+        return;
+    }
 
     const friendRef = db.collection('users').doc(friendId);
     const friendDoc = await friendRef.get();
@@ -1436,19 +1546,48 @@ const handleAddFriend = async (e) => {
         addFriendStatus.className = 'text-xs mt-1 h-3 text-red-400';
         return;
     }
+    if (friendDoc.data().blockedUsers?.includes(currentUser.uid)) {
+         addFriendStatus.textContent = 'You cannot add this user.';
+        addFriendStatus.className = 'text-xs mt-1 h-3 text-red-400';
+        return;
+    }
 
-    const currentUserRef = db.collection('users').doc(currentUser.uid);
-    await currentUserRef.update({
-        friends: firebase.firestore.FieldValue.arrayUnion(friendId)
-    });
-    await friendRef.update({
-        friends: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
-    });
-    
-    addFriendStatus.textContent = 'Friend added!';
-    addFriendStatus.className = 'text-xs mt-1 h-3 text-green-400';
-    addFriendInput.value = '';
-    setTimeout(() => { addFriendStatus.textContent = ''; }, 2000);
+    const currentUserDoc = await db.collection('users').doc(currentUser.uid).get();
+    if (currentUserDoc.data().friends?.includes(friendId)) {
+         addFriendStatus.textContent = 'You are already friends.';
+         addFriendStatus.className = 'text-xs mt-1 h-3 text-yellow-400';
+         return;
+    }
+
+    // Check for existing pending invites (either way)
+    const inviteQuery1 = await db.collection('invitations').where('fromId', '==', currentUser.uid).where('toId', '==', friendId).where('type', '==', 'friend').get();
+    const inviteQuery2 = await db.collection('invitations').where('fromId', '==', friendId).where('toId', '==', currentUser.uid).where('type', '==', 'friend').get();
+
+    if (!inviteQuery1.empty || !inviteQuery2.empty) {
+        addFriendStatus.textContent = 'Invite already pending.';
+        addFriendStatus.className = 'text-xs mt-1 h-3 text-yellow-400';
+        return;
+    }
+
+    try {
+        await db.collection('invitations').add({
+            fromId: currentUser.uid,
+            fromName: currentUser.displayName,
+            toId: friendId,
+            type: 'friend',
+            status: 'pending',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        addFriendStatus.textContent = 'Friend request sent!';
+        addFriendStatus.className = 'text-xs mt-1 h-3 text-green-400';
+        addFriendInput.value = '';
+    } catch (error) {
+        console.error("Error sending friend request:", error);
+        addFriendStatus.textContent = 'Failed to send request.';
+        addFriendStatus.className = 'text-xs mt-1 h-3 text-red-400';
+    } finally {
+        setTimeout(() => { addFriendStatus.textContent = ''; }, 3000);
+    }
 };
 
 const handleUpdateProfile = async (e) => {
@@ -1559,12 +1698,35 @@ const handleInviteFriend = async (e) => {
             inviteStatusMessage.className = 'text-sm mt-2 h-4 text-red-400';
             return;
         }
-        
+
         const serverRef = db.collection('servers').doc(activeServerId);
-        await serverRef.update({
-            members: firebase.firestore.FieldValue.arrayUnion(friendId)
+        const serverDoc = await serverRef.get();
+        const serverData = serverDoc.data();
+        if (serverData.members?.includes(friendId)) {
+            inviteStatusMessage.textContent = 'User is already a member.';
+            inviteStatusMessage.className = 'text-sm mt-2 h-4 text-yellow-400';
+            return;
+        }
+        
+        // Check for existing invites
+        const inviteQuery = await db.collection('invitations').where('toId', '==', friendId).where('serverId', '==', activeServerId).get();
+        if (!inviteQuery.empty) {
+            inviteStatusMessage.textContent = 'Invite already pending.';
+            inviteStatusMessage.className = 'text-sm mt-2 h-4 text-yellow-400';
+            return;
+        }
+
+        await db.collection('invitations').add({
+            fromId: currentUser.uid,
+            fromName: currentUser.displayName,
+            toId: friendId,
+            type: 'server',
+            serverId: activeServerId,
+            serverName: serverData.name,
+            serverIcon: serverData.iconUrl || null,
+            status: 'pending',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
-        await serverRef.collection('members').doc(friendId).set({ roles: ['default'] });
 
         inviteStatusMessage.textContent = `Invite sent to ${userDoc.data().displayName}!`;
         inviteStatusMessage.className = 'text-sm mt-2 h-4 text-green-400';
@@ -1584,8 +1746,9 @@ const showUserProfile = async (userId) => {
     const avatarEl = document.getElementById('user-profile-avatar');
     const nameEl = document.getElementById('user-profile-name');
     const friendCodeEl = document.getElementById('user-profile-friend-code');
+    const actionsContainer = document.getElementById('user-profile-actions');
 
-    if (!modal || !avatarEl || !nameEl || !friendCodeEl) return;
+    if (!modal || !avatarEl || !nameEl || !friendCodeEl || !actionsContainer) return;
 
     try {
         const userDoc = await db.collection('users').doc(userId).get();
@@ -1594,6 +1757,23 @@ const showUserProfile = async (userId) => {
             avatarEl.src = isValidHttpUrl(userData.photoURL) ? userData.photoURL : DEFAULT_AVATAR_SVG;
             nameEl.textContent = `${userData.displayName}'s Profile`;
             friendCodeEl.textContent = userId;
+
+            actionsContainer.innerHTML = '';
+            const isBlocked = currentUser.blockedUsers?.includes(userId);
+            const blockButton = document.createElement('button');
+            blockButton.className = 'w-full px-4 py-2 font-semibold text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transition duration-300';
+            
+            if(isBlocked) {
+                blockButton.textContent = 'Unblock User';
+                blockButton.className += ' bg-green-500 hover:bg-green-600 focus:ring-green-500';
+                blockButton.onclick = () => handleUnblockUser(userId);
+            } else {
+                blockButton.textContent = 'Block User';
+                blockButton.className += ' bg-red-500 hover:bg-red-600 focus:ring-red-500';
+                blockButton.onclick = () => handleBlockUser(userId);
+            }
+            actionsContainer.appendChild(blockButton);
+
             modal.style.display = 'flex';
         } else {
             console.warn("User not found:", userId);
@@ -1602,6 +1782,46 @@ const showUserProfile = async (userId) => {
         console.error("Error fetching user profile:", error);
     }
 };
+
+const handleBlockUser = async (userId) => {
+    if (!userId) return;
+    const userRef = db.collection('users').doc(currentUser.uid);
+    await userRef.update({
+        blockedUsers: firebase.firestore.FieldValue.arrayUnion(userId)
+    });
+    currentUser.blockedUsers.push(userId);
+    showUserProfile(userId); // Re-render profile to show "Unblock"
+};
+
+const handleUnblockUser = async (userId) => {
+    if (!userId) return;
+    const userRef = db.collection('users').doc(currentUser.uid);
+    await userRef.update({
+        blockedUsers: firebase.firestore.FieldValue.arrayRemove(userId)
+    });
+    currentUser.blockedUsers = currentUser.blockedUsers.filter(id => id !== userId);
+    showUserProfile(userId); // Re-render profile to show "Block"
+};
+
+const handleAcceptInvite = async (inviteId, inviteData) => {
+    if (inviteData.type === 'friend') {
+        const currentUserRef = db.collection('users').doc(currentUser.uid);
+        const friendRef = db.collection('users').doc(inviteData.fromId);
+        
+        await currentUserRef.update({ friends: firebase.firestore.FieldValue.arrayUnion(inviteData.fromId) });
+        await friendRef.update({ friends: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+    } else if (inviteData.type === 'server') {
+        const serverRef = db.collection('servers').doc(inviteData.serverId);
+        await serverRef.update({ members: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+        await serverRef.collection('members').doc(currentUser.uid).set({ roles: ['default'] });
+    }
+    await db.collection('invitations').doc(inviteId).delete();
+};
+
+const handleDeclineInvite = async (inviteId) => {
+    await db.collection('invitations').doc(inviteId).delete();
+};
+
 
 // =================================================================================
 // File Handling
@@ -2066,6 +2286,24 @@ document.getElementById('message-input').addEventListener('input', (e) => {
         renderCommandSuggestions(filteredCommands);
     } else {
         suggestionsContainer.classList.add('hidden');
+    }
+});
+
+// Home View Tabs
+document.getElementById('home-nav').addEventListener('click', (e) => {
+    if (e.target.matches('.home-nav-button')) {
+        const tab = e.target.dataset.tab;
+        
+        document.getElementById('friends-tab-panel').classList.toggle('hidden', tab !== 'friends');
+        document.getElementById('pending-tab-panel').classList.toggle('hidden', tab !== 'pending');
+
+        document.querySelectorAll('.home-nav-button').forEach(btn => {
+            const isSelected = btn.dataset.tab === tab;
+            btn.classList.toggle('bg-gray-600', isSelected);
+            btn.classList.toggle('text-white', isSelected);
+            btn.classList.toggle('text-gray-400', !isSelected);
+            btn.classList.toggle('hover:bg-gray-700/50', !isSelected);
+        });
     }
 });
 
