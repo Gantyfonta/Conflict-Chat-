@@ -331,6 +331,7 @@ let activeServerRoles = {};
 let activeServerRoleOrder = [];
 let activeServerMembers = {}; // { userId: { roles: [...] } }
 let allServerUsers = []; // { id, displayName, photoURL, status }
+let activeChannelCallStatus = {}; // { channelId: boolean }
 let stagedFile = null;
 let draggedRoleId = null;
 
@@ -340,15 +341,23 @@ let channelUnsubscribe = () => {};
 let usersUnsubscribe = () => {};
 let serversUnsubscribe = () => {};
 let friendsUnsubscribe = () => {};
-let callListenerUnsubscribe = () => {};
-let currentCallUnsubscribe = () => {};
+let dmCallListenerUnsubscribe = () => {};
+let currentDmCallUnsubscribe = () => {};
+let serverCallStatusUnsubscribe = () => {};
 
 
-// WebRTC State
-let peerConnection;
-let localStream;
-let remoteStream = new MediaStream();
-let activeCallData = null;
+// WebRTC State for DM Calls
+let dmPeerConnection;
+let dmlocalStream;
+let dmRemoteStream = new MediaStream();
+let activeDmCallData = null;
+
+// WebRTC State for Server Calls
+let serverPeerConnections = {}; // { [peerId]: RTCPeerConnection }
+let serverLocalStream = null;
+let activeServerCall = null; // { serverId, channelId }
+let serverCallUnsubscribes = []; // Array of unsubscribe functions for a server call
+
 const iceServers = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -395,7 +404,7 @@ auth.onAuthStateChanged(async (user) => {
       loadServers();
       loadFriends();
       setupPresence();
-      setupCallListener();
+      setupDmCallListener();
       selectHome(); // Default to home view on login
 
     } catch (error) {
@@ -425,15 +434,17 @@ auth.onAuthStateChanged(async (user) => {
     if(messageUnsubscribe) messageUnsubscribe();
     if(usersUnsubscribe) usersUnsubscribe();
     if(friendsUnsubscribe) friendsUnsubscribe();
-    if(callListenerUnsubscribe) callListenerUnsubscribe();
-    if(currentCallUnsubscribe) currentCallUnsubscribe();
-    await hangUp();
+    if(dmCallListenerUnsubscribe) dmCallListenerUnsubscribe();
+    if(currentDmCallUnsubscribe) currentDmCallUnsubscribe();
+    if(serverCallStatusUnsubscribe) serverCallStatusUnsubscribe();
+    await hangUpCurrentCall();
   }
 });
 
 const setupPresence = () => {
     const userStatusRef = db.collection('users').doc(currentUser.uid);
     window.addEventListener('beforeunload', () => {
+        hangUpCurrentCall(); // Disconnect from any active call before unload
         userStatusRef.update({ status: 'offline' });
     });
 }
@@ -644,11 +655,15 @@ const renderChannels = (server, channels) => {
 
     channels.forEach(channel => {
         const isActive = channel.id === activeChannelId;
+        const isCallActive = activeChannelCallStatus[channel.id];
         const channelLink = document.createElement('button');
-        channelLink.className = `flex items-center w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
+        channelLink.className = `flex items-center justify-between w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
         channelLink.innerHTML = `
-            <svg class="w-5 h-5 mr-2 text-gray-500" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
-            <span class="font-medium truncate">${channel.name}</span>
+            <div class="flex items-center truncate">
+                <svg class="w-5 h-5 mr-2 text-gray-500" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
+                <span class="font-medium truncate">${channel.name}</span>
+            </div>
+            ${isCallActive ? `<svg class="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>` : ''}
         `;
         channelLink.onclick = () => selectChannel(channel.id);
         channelList.appendChild(channelLink);
@@ -904,7 +919,7 @@ const loadFriends = () => {
 
 
 const selectHome = async () => {
-    await hangUp();
+    await hangUpCurrentCall();
     activeView = 'home';
     activeServerId = null;
     activeChannelId = null;
@@ -912,10 +927,12 @@ const selectHome = async () => {
     activeServerRoleOrder = [];
     activeServerMembers = {};
     allServerUsers = [];
+    activeChannelCallStatus = {};
 
     if (messageUnsubscribe) messageUnsubscribe();
     if (channelUnsubscribe) channelUnsubscribe();
     if (usersUnsubscribe) usersUnsubscribe();
+    if (serverCallStatusUnsubscribe) serverCallStatusUnsubscribe();
     
     const homeView = document.getElementById('home-view');
     const channelListPanel = document.getElementById('channel-list-panel');
@@ -947,7 +964,7 @@ const selectHome = async () => {
 
 const selectServer = async (serverId) => {
     if (activeServerId === serverId && activeView === 'servers') return;
-    await hangUp();
+    await hangUpCurrentCall();
     activeView = 'servers';
     activeServerId = serverId;
     activeChannelId = null;
@@ -955,6 +972,7 @@ const selectServer = async (serverId) => {
     if (channelUnsubscribe) channelUnsubscribe();
     if (usersUnsubscribe) usersUnsubscribe();
     if (messageUnsubscribe) messageUnsubscribe();
+    if (serverCallStatusUnsubscribe) serverCallStatusUnsubscribe();
     
     const homeView = document.getElementById('home-view');
     const channelListPanel = document.getElementById('channel-list-panel');
@@ -1022,9 +1040,30 @@ const selectServer = async (serverId) => {
             }
         });
     });
+
+    // Listener for active calls in the server
+    serverCallStatusUnsubscribe = serverRef.collection('callStatus').onSnapshot((snapshot) => {
+        activeChannelCallStatus = {};
+        snapshot.forEach(doc => {
+            if (doc.data().participants?.length > 0) {
+                activeChannelCallStatus[doc.id] = true;
+            }
+        });
+        // Re-render channels to show/hide call icons
+        serverRef.get().then((serverDoc) => {
+            serverRef.collection('channels').orderBy('name').get().then((channelDocs) => {
+                renderChannels(serverDoc.data(), channelDocs.docs.map((d) => ({ id: d.id, ...d.data() })));
+            });
+        });
+    });
 };
 
 const selectChannel = (channelId) => {
+    // If we're selecting a new channel while in a server call, don't hang up.
+    if (!activeServerCall || activeServerCall.channelId !== channelId) {
+        hangUpCurrentCall();
+    }
+    
     activeChannelId = channelId;
     if (messageUnsubscribe) messageUnsubscribe();
 
@@ -1042,9 +1081,15 @@ const selectChannel = (channelId) => {
         if (doc.exists) {
             const channelData = doc.data();
             if(chatHeader) chatHeader.innerHTML = `
-            <svg class="w-6 h-6 text-gray-500 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
-            <h2 class="font-semibold text-lg text-white">${channelData.name}</h2>
+                <div class="flex items-center">
+                    <svg class="w-6 h-6 text-gray-500 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
+                    <h2 class="font-semibold text-lg text-white">${channelData.name}</h2>
+                </div>
+                <button id="join-server-call-button" class="ml-auto text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-600">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>
+                </button>
             `;
+            document.getElementById('join-server-call-button').onclick = () => joinServerCall(activeServerId, channelId);
             if(messageInput) messageInput.placeholder = `Message #${channelData.name}`;
         }
     });
@@ -1060,10 +1105,11 @@ const selectChannel = (channelId) => {
             renderChannels(serverDoc.data(), channelDocs.docs.map((d) => ({ id: d.id, ...d.data() })));
         });
     });
+    updatePersistentCallBar();
 };
 
 const selectDmChannel = async (friend) => {
-    await hangUp();
+    await hangUpCurrentCall();
     activeChannelId = getDmChannelId(friend.id);
     if (messageUnsubscribe) messageUnsubscribe();
     
@@ -1087,11 +1133,11 @@ const selectDmChannel = async (friend) => {
                 </div>
                 <h2 class="font-semibold text-lg text-white">${friend.displayName}</h2>
             </div>
-            <button id="start-call-button" class="ml-auto text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-600">
+            <button id="start-dm-call-button" class="ml-auto text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-600">
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>
             </button>
         `;
-        document.getElementById('start-call-button').onclick = () => startCall(friend);
+        document.getElementById('start-dm-call-button').onclick = () => startDmCall(friend);
     }
 
     if(messageInput) messageInput.placeholder = `Message @${friend.displayName}`;
@@ -1104,6 +1150,7 @@ const selectDmChannel = async (friend) => {
 
     // Re-render friends list to show active state
     loadFriends();
+    updatePersistentCallBar();
 };
 
 const sendMessage = async (messageData) => {
@@ -1510,12 +1557,23 @@ const cancelFilePreview = () => {
 };
 
 // =================================================================================
-// WebRTC Video Call Functions
+// WebRTC Call - Generic Controls & Cleanup
 // =================================================================================
 
+const hangUpCurrentCall = async () => {
+    if (activeDmCallData) {
+        await hangUpDmCall();
+    }
+    if (activeServerCall) {
+        await hangUpServerCall();
+    }
+};
+
+
 const toggleMute = () => {
-    if (!localStream) return;
-    const audioTrack = localStream.getAudioTracks()[0];
+    const stream = activeServerCall ? serverLocalStream : dmlocalStream;
+    if (!stream) return;
+    const audioTrack = stream.getAudioTracks()[0];
     const micButton = document.getElementById('toggle-mic-button');
     if (audioTrack && micButton) {
         audioTrack.enabled = !audioTrack.enabled;
@@ -1530,8 +1588,9 @@ const toggleMute = () => {
 };
 
 const toggleCamera = () => {
-    if (!localStream) return;
-    const videoTrack = localStream.getVideoTracks()[0];
+    const stream = activeServerCall ? serverLocalStream : dmlocalStream;
+    if (!stream) return;
+    const videoTrack = stream.getVideoTracks()[0];
     const camButton = document.getElementById('toggle-camera-button');
     if (videoTrack && camButton) {
         videoTrack.enabled = !videoTrack.enabled;
@@ -1545,47 +1604,47 @@ const toggleCamera = () => {
     }
 };
 
-const setupCallListener = () => {
-    if (callListenerUnsubscribe) callListenerUnsubscribe();
-    callListenerUnsubscribe = db.collection('calls')
+// =================================================================================
+// WebRTC DM (1-on-1) Call Functions
+// =================================================================================
+
+const setupDmCallListener = () => {
+    if (dmCallListenerUnsubscribe) dmCallListenerUnsubscribe();
+    dmCallListenerUnsubscribe = db.collection('calls')
         .where('calleeId', '==', currentUser.uid)
         .where('status', '==', 'ringing')
         .onSnapshot(snapshot => {
             if (!snapshot.empty) {
                 const callDoc = snapshot.docs[0];
-                handleIncomingCall({ id: callDoc.id, ...callDoc.data() });
+                handleIncomingDmCall({ id: callDoc.id, ...callDoc.data() });
             }
         });
 };
 
-const handleIncomingCall = async (callData) => {
-    if (activeCallData) {
-        // If already in a call, automatically decline.
+const handleIncomingDmCall = async (callData) => {
+    if (activeDmCallData || activeServerCall) {
         const callRef = db.collection('calls').doc(callData.id);
         await callRef.update({ status: 'declined' });
         return;
     }
-    activeCallData = callData;
+    activeDmCallData = callData;
     const callerDoc = await db.collection('users').doc(callData.callerId).get();
     const caller = callerDoc.data();
-    showCallUI('incoming', caller);
+    showDmCallUI('incoming', caller);
 
-    // Set up a listener to hang up if the caller cancels
-    currentCallUnsubscribe = db.collection('calls').doc(callData.id).onSnapshot((snapshot) => {
+    currentDmCallUnsubscribe = db.collection('calls').doc(callData.id).onSnapshot((snapshot) => {
         if (!snapshot.exists || snapshot.data().status === 'ended') {
-            console.log("Call was cancelled by caller or ended.");
-            hangUp();
+            hangUpDmCall();
         }
     });
 };
 
 
-const startCall = async (friend) => {
-    if (activeCallData) return alert("You are already in a call.");
+const startDmCall = async (friend) => {
+    if (activeDmCallData || activeServerCall) return alert("You are already in a call.");
     
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        document.getElementById('local-video').srcObject = localStream;
+        dmlocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
     } catch (error) {
         console.error("Could not get media devices:", error);
         alert("Camera and microphone access are required for video calls.");
@@ -1593,57 +1652,58 @@ const startCall = async (friend) => {
     }
 
     const callRef = db.collection('calls').doc();
-    activeCallData = { 
+    activeDmCallData = { 
         id: callRef.id,
         callerId: currentUser.uid,
         calleeId: friend.id,
         status: 'ringing'
     };
     
-    showCallUI('outgoing', friend);
+    showDmCallUI('outgoing', friend);
 
-    peerConnection = new RTCPeerConnection(iceServers);
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    dmPeerConnection = new RTCPeerConnection(iceServers);
+    dmlocalStream.getTracks().forEach(track => dmPeerConnection.addTrack(track, dmlocalStream));
 
-    peerConnection.onicecandidate = event => {
+    dmPeerConnection.onicecandidate = event => {
         if (event.candidate) {
             callRef.collection('callerCandidates').add(event.candidate.toJSON());
         }
     };
     
-    peerConnection.ontrack = event => {
-        const remoteVideo = document.getElementById('remote-video');
-        remoteStream.addTrack(event.track);
-        if (remoteVideo.srcObject !== remoteStream) {
-            remoteVideo.srcObject = remoteStream;
+    dmPeerConnection.ontrack = event => {
+        const remoteVideo = document.getElementById(`video-remote-${friend.id}`);
+        if(remoteVideo) {
+            dmRemoteStream.addTrack(event.track);
+            if (remoteVideo.srcObject !== dmRemoteStream) {
+                remoteVideo.srcObject = dmRemoteStream;
+            }
         }
     };
 
-    const offerDescription = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offerDescription);
+    const offerDescription = await dmPeerConnection.createOffer();
+    await dmPeerConnection.setLocalDescription(offerDescription);
 
     const offer = { sdp: offerDescription.sdp, type: offerDescription.type };
     
     await callRef.set({
-        ...activeCallData,
+        ...activeDmCallData,
         offer,
     });
     
-    // Listen for answer
-    currentCallUnsubscribe = callRef.onSnapshot(async snapshot => {
+    currentDmCallUnsubscribe = callRef.onSnapshot(async snapshot => {
         const data = snapshot.data();
         if (!data) return;
-        if (data.answer && !peerConnection.currentRemoteDescription) {
+        if (data.answer && !dmPeerConnection.currentRemoteDescription) {
             const answerDescription = new RTCSessionDescription(data.answer);
-            await peerConnection.setRemoteDescription(answerDescription);
+            await dmPeerConnection.setRemoteDescription(answerDescription);
         }
-        if (data.status === 'connected' && activeCallData.status !== 'connected') {
-            activeCallData.status = 'connected';
+        if (data.status === 'connected' && activeDmCallData.status !== 'connected') {
+            activeDmCallData.status = 'connected';
             const calleeDoc = await db.collection('users').doc(data.calleeId).get();
-            showCallUI('connected', calleeDoc.data());
+            showDmCallUI('connected', calleeDoc.data());
         }
         if (data.status === 'declined' || data.status === 'ended') {
-            await hangUp();
+            await hangUpDmCall();
         }
     });
 
@@ -1651,60 +1711,61 @@ const startCall = async (friend) => {
         snapshot.docChanges().forEach(change => {
             if (change.type === 'added') {
                 const candidate = new RTCIceCandidate(change.doc.data());
-                peerConnection.addIceCandidate(candidate);
+                dmPeerConnection.addIceCandidate(candidate);
             }
         });
     });
 };
 
-const answerCall = async () => {
-    if (!activeCallData) return;
+const answerDmCall = async () => {
+    if (!activeDmCallData) return;
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        document.getElementById('local-video').srcObject = localStream;
+        dmlocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
     } catch (error) {
         console.error("Could not get media devices:", error);
         alert("Camera and microphone access are required for video calls.");
         return;
     }
     
-    const callRef = db.collection('calls').doc(activeCallData.id);
-    const callerDoc = await db.collection('users').doc(activeCallData.callerId).get();
+    const callRef = db.collection('calls').doc(activeDmCallData.id);
+    const callerDoc = await db.collection('users').doc(activeDmCallData.callerId).get();
     
-    showCallUI('connected', callerDoc.data());
+    showDmCallUI('connected', callerDoc.data());
 
-    peerConnection = new RTCPeerConnection(iceServers);
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    dmPeerConnection = new RTCPeerConnection(iceServers);
+    dmlocalStream.getTracks().forEach(track => dmPeerConnection.addTrack(track, dmlocalStream));
     
-    peerConnection.onicecandidate = event => {
+    dmPeerConnection.onicecandidate = event => {
         if (event.candidate) {
             callRef.collection('calleeCandidates').add(event.candidate.toJSON());
         }
     };
     
-    peerConnection.ontrack = event => {
-        const remoteVideo = document.getElementById('remote-video');
-        remoteStream.addTrack(event.track);
-        if (remoteVideo.srcObject !== remoteStream) {
-            remoteVideo.srcObject = remoteStream;
+    dmPeerConnection.ontrack = event => {
+        const remoteVideo = document.getElementById(`video-remote-${activeDmCallData.callerId}`);
+        if(remoteVideo) {
+            dmRemoteStream.addTrack(event.track);
+            if (remoteVideo.srcObject !== dmRemoteStream) {
+                remoteVideo.srcObject = dmRemoteStream;
+            }
         }
     };
 
     const callDoc = await callRef.get();
     const offerDescription = new RTCSessionDescription(callDoc.data().offer);
-    await peerConnection.setRemoteDescription(offerDescription);
+    await dmPeerConnection.setRemoteDescription(offerDescription);
     
-    const answerDescription = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answerDescription);
+    const answerDescription = await dmPeerConnection.createAnswer();
+    await dmPeerConnection.setLocalDescription(answerDescription);
     
     const answer = { type: answerDescription.type, sdp: answerDescription.sdp };
     await callRef.update({ answer, status: 'connected' });
     
-    if (currentCallUnsubscribe) currentCallUnsubscribe();
-    currentCallUnsubscribe = callRef.onSnapshot(snapshot => {
+    if (currentDmCallUnsubscribe) currentDmCallUnsubscribe();
+    currentDmCallUnsubscribe = callRef.onSnapshot(snapshot => {
         const data = snapshot.data();
         if (data?.status === 'ended') {
-            hangUp();
+            hangUpDmCall();
         }
     });
 
@@ -1712,29 +1773,32 @@ const answerCall = async () => {
         snapshot.docChanges().forEach(change => {
             if (change.type === 'added') {
                 const candidate = new RTCIceCandidate(change.doc.data());
-                peerConnection.addIceCandidate(candidate);
+                dmPeerConnection.addIceCandidate(candidate);
             }
         });
     });
 };
 
-const declineCall = async () => {
-    if (!activeCallData) return;
-    const callRef = db.collection('calls').doc(activeCallData.id);
+const declineDmCall = async () => {
+    if (!activeDmCallData) return;
+    const callRef = db.collection('calls').doc(activeDmCallData.id);
     await callRef.update({ status: 'declined' });
-    await hangUp();
+    await hangUpDmCall();
 };
 
-const showCallUI = (type, peer) => {
+const showDmCallUI = (type, peer) => {
     const videoCallView = document.getElementById('video-call-view');
     const status = document.getElementById('video-call-status');
     const controls = document.getElementById('video-call-controls');
-    const localVideoContainer = document.getElementById('local-video-container');
+    const videoGrid = document.getElementById('video-grid');
 
     videoCallView.classList.remove('hidden');
+    videoGrid.innerHTML = '';
     const peerAvatar = isValidHttpUrl(peer.photoURL) ? peer.photoURL : DEFAULT_AVATAR_SVG;
 
     if (type === 'outgoing') {
+        status.classList.remove('hidden');
+        status.style.display = 'flex';
         status.innerHTML = `
             <img src="${peerAvatar}" alt="${peer.displayName}" class="w-24 h-24 rounded-full mb-4 border-4 border-gray-700 object-cover animate-pulse">
             <h3 class="text-2xl font-semibold">Calling ${peer.displayName}...</h3>
@@ -1742,11 +1806,16 @@ const showCallUI = (type, peer) => {
         `;
         controls.style.display = 'flex';
         controls.innerHTML = `<button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>`;
-        document.getElementById('hang-up-button').onclick = hangUp;
-        localVideoContainer.style.display = 'block';
-        status.style.display = 'flex';
+        document.getElementById('hang-up-button').onclick = hangUpDmCall;
+        
+        // Add local video
+        const localVideoContainer = createVideoContainer(currentUser.uid, currentUser.displayName, true);
+        localVideoContainer.querySelector('video').srcObject = dmlocalStream;
+        videoGrid.appendChild(localVideoContainer);
 
     } else if (type === 'incoming') {
+        status.classList.remove('hidden');
+        status.style.display = 'flex';
         status.innerHTML = `
             <img src="${peerAvatar}" alt="${peer.displayName}" class="w-24 h-24 rounded-full mb-4 border-4 border-gray-700 object-cover">
             <h3 class="text-2xl font-semibold">${peer.displayName} is calling...</h3>
@@ -1758,14 +1827,11 @@ const showCallUI = (type, peer) => {
                 <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path></svg>
             </button>
         `;
-        document.getElementById('decline-call-button').onclick = declineCall;
-        document.getElementById('answer-call-button').onclick = answerCall;
-        localVideoContainer.style.display = 'none';
-        status.style.display = 'flex';
+        document.getElementById('decline-call-button').onclick = declineDmCall;
+        document.getElementById('answer-call-button').onclick = answerDmCall;
 
     } else if (type === 'connected') {
         status.style.display = 'none';
-        localVideoContainer.style.display = 'block';
         controls.style.display = 'flex';
         controls.innerHTML = `
             <button id="toggle-mic-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Mute microphone" data-muted="false">${MIC_ON_SVG}</button>
@@ -1774,53 +1840,257 @@ const showCallUI = (type, peer) => {
         `;
         document.getElementById('toggle-mic-button').onclick = toggleMute;
         document.getElementById('toggle-camera-button').onclick = toggleCamera;
-        document.getElementById('hang-up-button').onclick = hangUp;
+        document.getElementById('hang-up-button').onclick = hangUpDmCall;
+        
+        // Add local and remote videos
+        const localVideoContainer = createVideoContainer(currentUser.uid, currentUser.displayName, true);
+        localVideoContainer.querySelector('video').srcObject = dmlocalStream;
+        videoGrid.appendChild(localVideoContainer);
+
+        const remoteVideoContainer = createVideoContainer(peer.id, peer.displayName, false);
+        videoGrid.appendChild(remoteVideoContainer);
     }
 };
 
-const hangUp = async () => {
-    if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
+const hangUpDmCall = async () => {
+    if (dmPeerConnection) {
+        dmPeerConnection.close();
+        dmPeerConnection = null;
     }
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
+    if (dmlocalStream) {
+        dmlocalStream.getTracks().forEach(track => track.stop());
+        dmlocalStream = null;
     }
-    remoteStream = new MediaStream();
+    dmRemoteStream = new MediaStream();
     
-    // Cleanup UI
     const videoCallView = document.getElementById('video-call-view');
-    const remoteVideo = document.getElementById('remote-video');
-    const localVideo = document.getElementById('local-video');
     if (videoCallView) videoCallView.classList.add('hidden');
-    if (remoteVideo) remoteVideo.srcObject = null;
-    if (localVideo) localVideo.srcObject = null;
     
-    // Reset local video position
-    const localVideoContainer = document.getElementById('local-video-container');
-    if(localVideoContainer) {
-        localVideoContainer.style.top = '1rem';
-        localVideoContainer.style.right = '1rem';
-        localVideoContainer.style.left = 'auto';
-        localVideoContainer.style.bottom = 'auto';
-    }
-
-
-    if (currentCallUnsubscribe) {
-        currentCallUnsubscribe();
-        currentCallUnsubscribe = null;
+    if (currentDmCallUnsubscribe) {
+        currentDmCallUnsubscribe();
+        currentDmCallUnsubscribe = null;
     }
     
-    if (activeCallData) {
-        const callRef = db.collection('calls').doc(activeCallData.id);
+    if (activeDmCallData) {
+        const callRef = db.collection('calls').doc(activeDmCallData.id);
         const callDoc = await callRef.get();
         if (callDoc.exists && callDoc.data().status !== 'ended') {
             await callRef.update({ status: 'ended' });
         }
-        activeCallData = null;
+        activeDmCallData = null;
     }
 };
+
+// =================================================================================
+// WebRTC Server (Multi-person) Call Functions
+// =================================================================================
+
+const joinServerCall = async (serverId, channelId) => {
+    if (activeDmCallData || activeServerCall) return alert("You are already in a call.");
+    
+    try {
+        serverLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    } catch (error) {
+        console.error("Could not get media devices:", error);
+        alert("Camera and microphone access are required for video calls.");
+        return;
+    }
+
+    activeServerCall = { serverId, channelId };
+    const callStatusRef = db.collection('servers').doc(serverId).collection('callStatus').doc(channelId);
+    
+    await callStatusRef.set({ participants: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) }, { merge: true });
+
+    showServerCallUI();
+    
+    // Listen for participants
+    const participantsUnsubscribe = callStatusRef.onSnapshot(async (doc) => {
+        const participants = doc.data()?.participants || [];
+        updateVideoGrid(participants);
+
+        const otherParticipants = participants.filter(p => p !== currentUser.uid);
+
+        // Connect to new participants
+        for (const peerId of otherParticipants) {
+            if (!serverPeerConnections[peerId]) {
+                createPeerConnectionForUser(peerId, serverId, channelId, true); // This user initiates
+            }
+        }
+        // Remove disconnected participants
+        for (const peerId in serverPeerConnections) {
+            if (!otherParticipants.includes(peerId)) {
+                serverPeerConnections[peerId].close();
+                delete serverPeerConnections[peerId];
+            }
+        }
+    });
+    serverCallUnsubscribes.push(participantsUnsubscribe);
+
+    // Listen for signaling messages (offers, answers, candidates)
+    const signalingRef = db.collection('servers').doc(serverId).collection('channels').doc(channelId).collection('signaling').doc(currentUser.uid);
+    const signalingUnsubscribe = signalingRef.onSnapshot(snapshot => {
+        snapshot.data()?.messages?.forEach(async msg => {
+            if (msg.offer && !serverPeerConnections[msg.from]) {
+                 createPeerConnectionForUser(msg.from, serverId, channelId, false, msg.offer);
+            }
+            if (msg.answer) {
+                serverPeerConnections[msg.from]?.setRemoteDescription(new RTCSessionDescription(msg.answer));
+            }
+            if (msg.candidate) {
+                serverPeerConnections[msg.from]?.addIceCandidate(new RTCIceCandidate(msg.candidate));
+            }
+        });
+        // Clear messages after processing
+        signalingRef.set({ messages: [] });
+    });
+    serverCallUnsubscribes.push(signalingUnsubscribe);
+    updatePersistentCallBar();
+};
+
+const createPeerConnectionForUser = async (peerId, serverId, channelId, isInitiator, offer = null) => {
+    serverPeerConnections[peerId] = new RTCPeerConnection(iceServers);
+    const pc = serverPeerConnections[peerId];
+
+    serverLocalStream.getTracks().forEach(track => pc.addTrack(track, serverLocalStream));
+
+    pc.onicecandidate = event => {
+        if (event.candidate) {
+            sendSignalingMessage(serverId, channelId, peerId, { candidate: event.candidate.toJSON() });
+        }
+    };
+
+    pc.ontrack = event => {
+        const remoteVideo = document.getElementById(`video-remote-${peerId}`);
+        if (remoteVideo) {
+            if (!remoteVideo.srcObject) {
+                remoteVideo.srcObject = new MediaStream();
+            }
+            remoteVideo.srcObject.addTrack(event.track);
+        }
+    };
+    
+    if (isInitiator) {
+        const offerDescription = await pc.createOffer();
+        await pc.setLocalDescription(offerDescription);
+        sendSignalingMessage(serverId, channelId, peerId, { offer: offerDescription });
+    } else {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answerDescription = await pc.createAnswer();
+        await pc.setLocalDescription(answerDescription);
+        sendSignalingMessage(serverId, channelId, peerId, { answer: answerDescription });
+    }
+};
+
+const sendSignalingMessage = (serverId, channelId, toUserId, data) => {
+    const signalingRef = db.collection('servers').doc(serverId).collection('channels').doc(channelId).collection('signaling').doc(toUserId);
+    signalingRef.set({ 
+        messages: firebase.firestore.FieldValue.arrayUnion({ from: currentUser.uid, ...data }) 
+    }, { merge: true });
+};
+
+const showServerCallUI = () => {
+    const videoCallView = document.getElementById('video-call-view');
+    const controls = document.getElementById('video-call-controls');
+    
+    document.getElementById('chat-view').style.display = 'none';
+    document.getElementById('placeholder-view').style.display = 'none';
+    videoCallView.classList.remove('hidden');
+
+    controls.style.display = 'flex';
+    controls.innerHTML = `
+        <button id="toggle-mic-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Mute microphone" data-muted="false">${MIC_ON_SVG}</button>
+        <button id="toggle-camera-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Turn off camera" data-enabled="true">${CAM_ON_SVG}</button>
+        <button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>
+    `;
+    document.getElementById('toggle-mic-button').onclick = toggleMute;
+    document.getElementById('toggle-camera-button').onclick = toggleCamera;
+    document.getElementById('hang-up-button').onclick = hangUpServerCall;
+};
+
+const updateVideoGrid = (participants) => {
+    const videoGrid = document.getElementById('video-grid');
+    videoGrid.innerHTML = ''; // Clear grid
+
+    // Add self
+    const localVideoContainer = createVideoContainer(currentUser.uid, currentUser.displayName, true);
+    localVideoContainer.querySelector('video').srcObject = serverLocalStream;
+    videoGrid.appendChild(localVideoContainer);
+
+    // Add others
+    participants.filter(p => p !== currentUser.uid).forEach(peerId => {
+        const user = allServerUsers.find(u => u.id === peerId) || { displayName: 'Unknown User' };
+        const remoteVideoContainer = createVideoContainer(peerId, user.displayName, false);
+        videoGrid.appendChild(remoteVideoContainer);
+    });
+};
+
+const createVideoContainer = (userId, displayName, isLocal) => {
+    const container = document.createElement('div');
+    container.className = 'relative bg-gray-800 rounded-lg overflow-hidden aspect-video';
+    container.innerHTML = `
+        <video id="video-${isLocal ? 'local' : 'remote'}-${userId}" autoplay playsinline class="w-full h-full object-cover" ${isLocal ? 'muted' : ''}></video>
+        <div class="absolute bottom-2 left-2 bg-black/50 text-white text-sm px-2 py-1 rounded-md">${displayName}</div>
+    `;
+    return container;
+};
+
+const hangUpServerCall = async () => {
+    if (!activeServerCall) return;
+    const { serverId, channelId } = activeServerCall;
+
+    const callStatusRef = db.collection('servers').doc(serverId).collection('callStatus').doc(channelId);
+    await callStatusRef.update({ participants: firebase.firestore.FieldValue.arrayRemove(currentUser.uid) });
+
+    serverCallUnsubscribes.forEach(unsub => unsub());
+    serverCallUnsubscribes = [];
+    
+    Object.values(serverPeerConnections).forEach(pc => pc.close());
+    serverPeerConnections = {};
+
+    if (serverLocalStream) {
+        serverLocalStream.getTracks().forEach(track => track.stop());
+        serverLocalStream = null;
+    }
+
+    activeServerCall = null;
+
+    const videoCallView = document.getElementById('video-call-view');
+    videoCallView.classList.add('hidden');
+
+    if (activeChannelId === channelId) {
+        selectChannel(channelId); // Re-render chat view
+    }
+    updatePersistentCallBar();
+};
+
+const updatePersistentCallBar = () => {
+    const bar = document.getElementById('persistent-call-bar');
+    const videoCallView = document.getElementById('video-call-view');
+
+    if (activeServerCall && videoCallView.classList.contains('hidden')) {
+        bar.classList.remove('hidden');
+        bar.innerHTML = `
+            <div class="text-sm text-white font-semibold">
+                <p>Voice Connected</p>
+                <p class="text-xs text-gray-400">#${activeChannelId}</p>
+            </div>
+            <div class="flex items-center space-x-2">
+                 <button id="rejoin-call-button" class="p-1 text-gray-300 hover:text-white"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"></path></svg></button>
+                 <button id="persistent-hangup-button" class="p-1 text-red-400 hover:text-red-300"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg></button>
+            </div>
+        `;
+        bar.querySelector('#persistent-hangup-button').onclick = hangUpServerCall;
+        bar.querySelector('#rejoin-call-button').onclick = () => {
+            document.getElementById('chat-view').style.display = 'none';
+            document.getElementById('placeholder-view').style.display = 'none';
+            videoCallView.classList.remove('hidden');
+            updatePersistentCallBar();
+        };
+
+    } else {
+        bar.classList.add('hidden');
+    }
+}
 
 
 // =================================================================================
@@ -1962,42 +2232,6 @@ document.addEventListener('click', (e) => {
     if (!document.getElementById('emoji-button').contains(e.target)) {
         document.getElementById('emoji-picker').classList.add('hidden');
     }
-});
-
-// Draggable local video
-const localVideoContainer = document.getElementById('local-video-container');
-let isDragging = false;
-let offsetX, offsetY;
-
-localVideoContainer.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    offsetX = e.clientX - localVideoContainer.offsetLeft;
-    offsetY = e.clientY - localVideoContainer.offsetTop;
-    localVideoContainer.style.transition = 'none';
-    e.preventDefault();
-});
-
-document.addEventListener('mousemove', (e) => {
-    if (isDragging) {
-        let x = e.clientX - offsetX;
-        let y = e.clientY - offsetY;
-
-        const parentRect = localVideoContainer.parentElement.getBoundingClientRect();
-        const elRect = localVideoContainer.getBoundingClientRect();
-        
-        x = Math.max(0, Math.min(x, parentRect.width - elRect.width));
-        y = Math.max(0, Math.min(y, parentRect.height - elRect.height));
-
-        localVideoContainer.style.left = `${x}px`;
-        localVideoContainer.style.top = `${y}px`;
-        localVideoContainer.style.right = 'auto';
-        localVideoContainer.style.bottom = 'auto';
-    }
-});
-
-document.addEventListener('mouseup', () => {
-    isDragging = false;
-    localVideoContainer.style.transition = 'all 0.3s ease';
 });
 
 // Roles Drag and Drop
