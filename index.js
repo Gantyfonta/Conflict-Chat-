@@ -37,15 +37,14 @@ const FAKE_ADS = [
     { title: 'Singles In Your Area', body: 'Tired of being alone? Meet other gamers near you now!', link: 'singles.html' },
 ];
 const COMMANDS = [
-    { command: '/ad', params: 'yes|no', description: 'Toggle advertisement visibility.' },
-    { command: '/tetris', params: '', description: 'Play a game of Tetris.' },
+    { command: '/poll', params: '"Question" "Option 1"...', description: 'Create a poll.' },
+    { command: '/shrug', params: '', description: '¯\\_(ツ)_/¯' },
     { command: '/coinflip', params: '', description: 'Flip a coin.' },
     { command: '/dice', params: '', description: 'Roll a 6-sided die.' },
-    { command: '/shrug', params: '', description: 'Insert the shrug emoticon.' },
-    { command: '/italic', params: '<message>', description: 'Send your message in italics.' },
-    { command: '/bold', params: '<message>', description: 'Send your message in bold.' },
-    { command: '/font', params: '<font> <message>', description: 'Send message in a specific font.' },
-    { command: '/size', params: '<num> <message>', description: 'Change text size (authorized users only).', restricted: true },
+    { command: '/kick', params: '<user_id>', description: 'Kick a user from the server.', restricted: true },
+    { command: '/ban', params: '<user_id>', description: 'Ban a user from the server.', restricted: true },
+    { command: '/ad', params: 'yes|no', description: 'Toggle advertisement visibility.' },
+    { command: '/tetris', params: '', description: 'Play a game of Tetris.' },
 ];
 const EMOJIS = [
   '😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊', '😋', '😎', '😍', '😘', '😗', '😙', '😚',
@@ -350,7 +349,7 @@ let activeChannelId = null; // Can be a server channel ID or a DM channel ID
 let activeServerRoles = {};
 let activeServerRoleOrder = [];
 let activeServerMembers = {}; // { userId: { roles: [...] } }
-let allServerUsers = []; // { id, displayName, photoURL, status }
+let activeServerUserProfiles = {}; // { userId: { id, displayName, photoURL, status, roles: [...] } }
 let stagedFile = null;
 let draggedRoleId = null;
 let unreadChannels = new Set();
@@ -710,7 +709,7 @@ const renderChannels = (server, channels) => {
         const isActive = channel.id === activeChannelId;
         const isUnread = unreadChannels.has(channel.id) && !isActive;
         const channelLink = document.createElement('button');
-        channelLink.className = `relative flex items-center w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
+        channelLink.className = `relative flex items-center w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isActive ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
         channelLink.innerHTML = `
             ${isUnread ? '<div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-2 bg-white rounded-r-full"></div>' : ''}
             <svg class="w-5 h-5 mr-2 text-gray-500" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
@@ -737,7 +736,7 @@ const renderFriends = (friends) => {
         const isUnread = unreadDms.has(getDmChannelId(friend.id)) && !isActive;
         const friendAvatarUrl = isValidHttpUrl(friend.photoURL) ? friend.photoURL : DEFAULT_AVATAR_SVG;
         
-        friendEl.className = `relative flex items-center justify-between w-full px-2 py-1.5 text-left rounded-md group transition-colors duration-150 ${isActive ? 'bg-gray-600 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
+        friendEl.className = `relative flex items-center justify-between w-full px-2 py-1.5 text-left rounded-md group transition-colors duration-150 ${isActive ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-300'}`;
         
         friendEl.dataset.friendId = friend.id;
         friendEl.dataset.friendName = friend.displayName;
@@ -792,6 +791,9 @@ const renderMessages = (messages) => {
         const messageEl = document.createElement('div');
         const currentTimestamp = msg.timestamp ? msg.timestamp.toDate() : new Date();
 
+        const userProfile = activeServerUserProfiles[msg.user.uid] || msg.user;
+        const displayName = userProfile.displayName;
+
         const highestRole = getHighestRole(msg.user.uid);
         const roleColor = highestRole ? highestRole.color : 'inherit';
 
@@ -804,24 +806,37 @@ const renderMessages = (messages) => {
         if (shouldGroup) {
             // Render a compact message
             messageEl.className = 'flex items-center pl-14 pr-4 py-0.5 hover:bg-gray-800/50 group';
+            const timestamp = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
             messageEl.innerHTML = `
-                <div class="text-gray-200 whitespace-pre-wrap break-all flex-1 min-w-0">${renderMessageContent(msg)}</div>
-                <span class="text-xs text-gray-500 ml-auto pl-4 opacity-0 group-hover:opacity-100 transition-opacity">${msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                <div class="text-gray-300 whitespace-pre-wrap break-all flex-1 min-w-0">${renderMessageContent(msg)}</div>
+                <span class="text-xs text-gray-500 ml-auto pl-4 opacity-0 group-hover:opacity-100 transition-opacity">${timestamp}</span>
+                ${msg.user.uid === currentUser.uid ? `
+                <button class="delete-message-btn ml-2 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100" data-message-id="${msg.id}" title="Delete Message">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                </button>
+                ` : ''}
             `;
         } else {
             // Render a full message with the user header
-            messageEl.className = 'flex p-4 hover:bg-gray-800/50 pt-6';
+            messageEl.className = 'flex p-4 hover:bg-gray-800/50 pt-6 relative group';
             const timestamp = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'sending...';
             const messageUserAvatar = isValidHttpUrl(msg.user.photoURL) ? msg.user.photoURL : DEFAULT_AVATAR_SVG;
             
             messageEl.innerHTML = `
-                <img src="${messageUserAvatar}" alt="${msg.user.displayName}" class="w-10 h-10 rounded-full mr-4 cursor-pointer object-cover flex-shrink-0" data-userid="${msg.user.uid}" />
+                ${msg.user.uid === currentUser.uid ? `
+                <div class="absolute top-4 right-4 bg-gray-800 rounded border border-gray-600 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button class="delete-message-btn p-1 text-gray-400 hover:text-red-400" data-message-id="${msg.id}" title="Delete Message">
+                       <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                    </button>
+                </div>
+                ` : ''}
+                <img src="${messageUserAvatar}" alt="${displayName}" class="w-10 h-10 rounded-full mr-4 cursor-pointer object-cover flex-shrink-0" data-userid="${msg.user.uid}" />
                 <div class="min-w-0 flex-1">
                     <div class="flex items-baseline">
-                        <span class="font-semibold mr-2 cursor-pointer" style="color: ${roleColor};" data-userid="${msg.user.uid}">${msg.user.displayName}</span>
+                        <span class="font-semibold mr-2 cursor-pointer" style="color: ${roleColor};" data-userid="${msg.user.uid}">${displayName}</span>
                         <span class="text-xs text-gray-500">${timestamp}</span>
                     </div>
-                    ${msg.text || msg.html ? `<div class="text-gray-200 whitespace-pre-wrap break-all">${renderMessageContent(msg)}</div>` : ''}
+                    ${msg.text || msg.html ? `<div class="text-gray-300 whitespace-pre-wrap break-all">${renderMessageContent(msg)}</div>` : ''}
                 </div>
             `;
         }
@@ -844,12 +859,15 @@ const renderUsers = (users) => {
     const userListAside = document.getElementById('user-list-aside');
     if (!userListAside) return;
 
-    userListAside.innerHTML = `<h3 class="text-xs font-bold uppercase text-gray-400 px-2 pt-2 pb-1">Members — ${users.length}</h3>`;
-    users.forEach(user => {
+    const userArray = Object.values(users);
+
+    userListAside.innerHTML = `<h3 class="text-xs font-bold uppercase text-gray-400 px-2 pt-2 pb-1">Members — ${userArray.length}</h3>`;
+    userArray.forEach(user => {
         const userEl = document.createElement('div');
         userEl.className = "flex items-center p-2 rounded-md hover:bg-gray-700/50 cursor-pointer";
         userEl.dataset.userid = user.id;
 
+        const displayName = user.displayName;
         const highestRole = getHighestRole(user.id);
         const roleColor = highestRole ? highestRole.color : 'inherit';
         const userAvatarUrl = isValidHttpUrl(user.photoURL) ? user.photoURL : DEFAULT_AVATAR_SVG;
@@ -857,10 +875,10 @@ const renderUsers = (users) => {
         userEl.innerHTML = `
             <div class="flex items-center pointer-events-none">
                 <div class="relative mr-3">
-                    <img src="${userAvatarUrl}" alt="${user.displayName}" class="w-8 h-8 rounded-full object-cover" />
+                    <img src="${userAvatarUrl}" alt="${displayName}" class="w-8 h-8 rounded-full object-cover" />
                     <div class="absolute bottom-0 right-0 w-2.5 h-2.5 ${user.status === 'online' ? 'bg-green-500' : 'bg-gray-500'} border-2 border-gray-800 rounded-full"></div>
                 </div>
-                <span class="text-sm font-medium" style="color: ${roleColor};">${user.displayName}</span>
+                <span class="text-sm font-medium" style="color: ${roleColor};">${displayName}</span>
             </div>
         `;
         userListAside.appendChild(userEl);
@@ -924,13 +942,14 @@ const renderServerMembers = () => {
     if (!membersList) return;
 
     membersList.innerHTML = '';
-    allServerUsers.forEach(user => {
+    Object.values(activeServerUserProfiles).forEach(user => {
         const memberData = activeServerMembers[user.id] || { roles: [] };
         const userAvatarUrl = isValidHttpUrl(user.photoURL) ? user.photoURL : DEFAULT_AVATAR_SVG;
         const memberEl = document.createElement('div');
         memberEl.className = 'p-2 rounded-md hover:bg-gray-700/50';
         
         const isOwner = activeServerData && activeServerData.owner === user.id;
+        const displayName = user.displayName;
 
         let rolesCheckboxesHTML = activeServerRoleOrder.map(roleId => {
             const role = activeServerRoles[roleId];
@@ -949,8 +968,8 @@ const renderServerMembers = () => {
         memberEl.innerHTML = `
             <div class="flex items-center justify-between">
                 <div class="flex items-center">
-                    <img src="${userAvatarUrl}" alt="${user.displayName}" class="w-8 h-8 rounded-full object-cover mr-3">
-                    <span class="font-medium text-white">${user.displayName}</span>
+                    <img src="${userAvatarUrl}" alt="${displayName}" class="w-8 h-8 rounded-full object-cover mr-3">
+                    <span class="font-medium text-white">${displayName}</span>
                     ${isOwner ? '<svg class="w-4 h-4 text-yellow-400 ml-2" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>' : ''}
                 </div>
             </div>
@@ -1047,10 +1066,10 @@ const getDmChannelId = (friendId) => {
 };
 
 const getHighestRole = (userId) => {
-    if (activeView !== 'servers' || !activeServerMembers[userId]) {
+    if (activeView !== 'servers' || !activeServerUserProfiles[userId]) {
         return null;
     }
-    const userRoleIds = activeServerMembers[userId].roles || [];
+    const userRoleIds = activeServerUserProfiles[userId].roles || [];
     for (const roleId of activeServerRoleOrder) {
         if (userRoleIds.includes(roleId)) {
             return activeServerRoles[roleId];
@@ -1061,19 +1080,17 @@ const getHighestRole = (userId) => {
 
 const currentUserHasModPermissions = () => {
     if (!activeServerId || !currentUser || !activeServerData) return false;
+    
+    // The owner always has permissions.
+    if (activeServerData.owner === currentUser.uid) return true;
 
-    // Check if the current user is the owner
-    if (activeServerData.owner === currentUser.uid) {
-        return true;
-    }
+    // Check user's profile for roles with moderator permissions.
+    const userProfile = activeServerUserProfiles[currentUser.uid];
+    if (!userProfile || !userProfile.roles) return false;
 
-    // Check if the user has a role with moderator permissions
-    const memberData = activeServerMembers[currentUser.uid];
-    if (!memberData || !memberData.roles) return false;
-
-    return memberData.roles.some(roleId => {
+    return userProfile.roles.some(roleId => {
         const role = activeServerRoles[roleId];
-        return role && role.permissions && role.permissions.isModerator;
+        return role?.permissions?.isModerator;
     });
 };
 
@@ -1190,7 +1207,7 @@ const selectHome = async () => {
     activeServerRoles = {};
     activeServerRoleOrder = [];
     activeServerMembers = {};
-    allServerUsers = [];
+    activeServerUserProfiles = {};
 
     if (messageUnsubscribe) messageUnsubscribe();
     if (channelUnsubscribe) channelUnsubscribe();
@@ -1259,13 +1276,12 @@ const selectServer = async (serverId) => {
     usersUnsubscribe = serverRef.onSnapshot(async (doc) => {
         if (doc.exists) {
             const serverData = doc.data();
-            activeServerData = serverData; // Cache server data
+            activeServerData = serverData;
             activeServerRoles = serverData.roles || {};
             activeServerRoleOrder = serverData.roleOrder || Object.keys(activeServerRoles);
             document.getElementById('server-settings-name-input').value = serverData.name;
             renderRoles();
             
-            // Toggle server settings button based on permissions
             if(settingsButton) settingsButton.classList.toggle('hidden', !currentUserHasModPermissions());
             
             const membersSnapshot = await serverRef.collection('members').get();
@@ -1276,13 +1292,21 @@ const selectServer = async (serverId) => {
 
             const memberUIDs = serverData.members || [];
             if (memberUIDs.length > 0) {
-                const userDocs = await db.collection('users').where(firebase.firestore.FieldPath.documentId(), 'in', memberUIDs).get();
-                allServerUsers = userDocs.docs.map(d => ({ id: d.id, ...d.data() }));
-                renderUsers(allServerUsers);
+                 const userDocs = await db.collection('users').where(firebase.firestore.FieldPath.documentId(), 'in', memberUIDs).get();
+                activeServerUserProfiles = {};
+                userDocs.docs.forEach(d => {
+                    const memberData = activeServerMembers[d.id] || {};
+                    activeServerUserProfiles[d.id] = { id: d.id, ...d.data(), ...memberData };
+                });
+                
+                // Update settings button visibility after profiles are loaded with role data
+                if(settingsButton) settingsButton.classList.toggle('hidden', !currentUserHasModPermissions());
+
+                renderUsers(activeServerUserProfiles);
                 renderServerMembers();
             } else {
-                allServerUsers = [];
-                renderUsers([]);
+                activeServerUserProfiles = {};
+                renderUsers({});
                 renderServerMembers();
             }
         }
@@ -1334,13 +1358,6 @@ const selectChannel = (channelId) => {
     });
 
     messageUnsubscribe = channelRef.collection('messages').orderBy('timestamp', 'asc').onSnapshot((snapshot) => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === 'added' && change.doc.data().user.uid !== currentUser.uid) {
-                if(document.visibilityState === 'visible') {
-                    messageSound.play().catch(e => console.warn("Audio play failed.", e));
-                }
-            }
-        });
         const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         renderMessages(messages);
     });
@@ -1388,13 +1405,6 @@ const selectDmChannel = async (friend) => {
 
     const dmRef = db.collection('dms').doc(dmChannelId);
     messageUnsubscribe = dmRef.collection('messages').orderBy('timestamp', 'asc').onSnapshot((snapshot) => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === 'added' && change.doc.data().user.uid !== currentUser.uid) {
-                if(document.visibilityState === 'visible') {
-                    messageSound.play().catch(e => console.warn("Audio play failed.", e));
-                }
-            }
-        });
         const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderMessages(messages);
     });
@@ -1405,9 +1415,10 @@ const sendMessage = async (messageData) => {
         const channelRef = db.collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId);
         const messagesRef = channelRef.collection('messages');
         const batch = db.batch();
-        batch.add(messagesRef, messageData);
+        const newMsgRef = messagesRef.doc(); // Get ref before adding
+        batch.set(newMsgRef, messageData);
         batch.update(channelRef, { lastMessage: {
-            text: messageData.text?.substring(0, 40) || 'File sent',
+            text: messageData.text?.substring(0, 40) || messageData.html || 'File sent',
             timestamp: messageData.timestamp
         }});
         await batch.commit();
@@ -1441,20 +1452,19 @@ const sendChatMessageWithSpamCheck = async (messageData) => {
                 // Fetch recent messages and filter client-side to avoid composite index
                 const recentMessagesQuery = await messagesRef
                     .orderBy('timestamp', 'desc')
-                    .limit(20) // Fetch more messages to find user's last 5
+                    .limit(10) // Fetch a few messages to be safe
                     .get();
                 
                 const userMessages = recentMessagesQuery.docs
                     .map(doc => doc.data())
-                    .filter(msg => msg.user.uid === currentUser.uid)
-                    .slice(0, 5);
+                    .filter(msg => msg.text && msg.user.uid === currentUser.uid);
 
-                // If the user has sent at least 5 messages recently...
-                if (userMessages.length === 5) {
-                    // ...and they are all identical to the new message...
-                    const isSpam = userMessages.every(msg => msg.text === messageData.text);
+                // Check if the user has sent at least 3 messages
+                // and if the last 3 are identical to the new one.
+                if (userMessages.length >= 3) {
+                    const lastThreeMessages = userMessages.slice(0, 3);
+                    const isSpam = lastThreeMessages.every(msg => msg.text === messageData.text);
                     if (isSpam) {
-                        // ...block the message.
                         console.log("Spam detected, message blocked.");
                         return false; // Indicate message was blocked
                     }
@@ -1474,11 +1484,13 @@ const handleSendMessage = async (e) => {
     e.preventDefault();
     const messageInput = document.getElementById('message-input');
     const sendButton = document.getElementById('send-button');
-    const text = messageInput.value.trim();
+    let text = messageInput.value.trim();
 
     if ((!text && !stagedFile) || !currentUser || messageInput.value.length > 500) return;
     
     document.getElementById('command-suggestions').classList.add('hidden');
+    messageInput.value = ''; // Clear input immediately
+    messageInput.dispatchEvent(new Event('input', { bubbles: true }));
 
     // Handle commands that don't create a message
     if (text.startsWith('/ad ')) {
@@ -1495,8 +1507,6 @@ const handleSendMessage = async (e) => {
             channelAd?.classList.add('hidden');
             localStorage.setItem('adsEnabled', 'false');
         }
-        messageInput.value = '';
-        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
         return;
     }
     if (text === '/tetris') {
@@ -1505,8 +1515,6 @@ const handleSendMessage = async (e) => {
             tetrisWindow.document.write(tetrisHTML);
             tetrisWindow.document.close();
         }
-        messageInput.value = '';
-        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
         return;
     }
     if (text === '/admin') {
@@ -1517,86 +1525,85 @@ const handleSendMessage = async (e) => {
                 adminWindow.document.close();
             }
         }
-        messageInput.value = '';
-        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
         return;
     }
     
-    let messageObject;
+    let messageObject = {
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        user: { uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL }
+    };
+    let commandHandled = false;
 
-    // If a file is staged, ignore all commands and treat input as plain text.
+    // Command parsing
+    if (text.startsWith('/')) {
+        const [command, ...args] = text.split(' ');
+        const fullArgs = args.join(' ');
+
+        switch (command) {
+            case '/kick':
+            case '/ban':
+                if (currentUserHasModPermissions()) {
+                    const userId = args[0];
+                    const targetUser = activeServerUserProfiles[userId];
+                    if (targetUser && targetUser.id !== activeServerData.owner) {
+                        const serverRef = db.collection('servers').doc(activeServerId);
+                        await serverRef.update({ members: firebase.firestore.FieldValue.arrayRemove(userId) });
+                        await serverRef.collection('members').doc(userId).delete();
+                        if (command === '/ban') {
+                            await serverRef.update({ bannedUsers: firebase.firestore.FieldValue.arrayUnion(userId) });
+                        }
+                    }
+                }
+                commandHandled = true;
+                break;
+            case '/poll':
+                const pollParts = text.match(/"([^"]*)"/g);
+                if (pollParts && pollParts.length >= 2) {
+                    const question = pollParts[0].slice(1, -1);
+                    const options = pollParts.slice(1).map(opt => opt.slice(1, -1));
+                    let optionsHTML = options.map(opt => `<li class="p-2 border border-gray-600 rounded-md mt-1">${escapeHTML(opt)}</li>`).join('');
+                    messageObject.html = `<div class="p-3 border border-gray-600 rounded-lg bg-gray-800"><strong class="text-white">${escapeHTML(question)}</strong><ul class="list-none p-0 mt-2">${optionsHTML}</ul></div>`;
+                }
+                break;
+            case '/shrug':
+                messageObject.text = '¯\\_(ツ)_/¯';
+                break;
+            case '/coinflip':
+                messageObject.text = Math.random() < 0.5 ? 'Heads' : 'Tails';
+                break;
+            case '/dice':
+                messageObject.text = `${Math.floor(Math.random() * 6) + 1}`;
+                break;
+            default:
+                messageObject.text = text; // Unrecognized command, post as text
+                break;
+        }
+    } else {
+        messageObject.text = text;
+    }
+    
+    if (commandHandled) return;
+
+    // Handle file attachment
     if (stagedFile) {
         const fileContent = await readFileAsText(stagedFile);
         const fileBlock = `\n\n\`\`\`txt\n${fileContent}\n\`\`\``;
-        messageObject = { text: text + fileBlock };
-    } else if (text.startsWith('/')) {
-        const [command, ...args] = text.split(' ');
-        const msgContent = args.join(' ');
-        let handled = false;
-
-        if (command === '/italic' && msgContent) {
-            messageObject = { html: `<em>${escapeHTML(msgContent)}</em>` };
-            handled = true;
-        } else if (command === '/bold' && msgContent) {
-            messageObject = { html: `<strong>${escapeHTML(msgContent)}</strong>` };
-            handled = true;
-        } else if (command === '/font' && args.length >= 2) {
-            const font = args[0];
-            const msg = args.slice(1).join(' ');
-            const safeFont = /^[a-zA-Z0-9\s,-]+$/.test(font) ? font : 'sans-serif';
-            messageObject = { html: `<span style="font-family: ${escapeHTML(safeFont)};">${escapeHTML(msg)}</span>` };
-            handled = true;
-        } else if (command === '/size' && args.length >= 2) {
-            const allowedEmails = ['28gkarfonta@catholiccentral.net', 'ninteenp2@gmail.com'];
-            if (currentUser && allowedEmails.includes(currentUser.email)) {
-                const size = parseInt(args[0], 10);
-                const msg = args.slice(1).join(' ');
-                if (!isNaN(size) && size >= 8 && size <= 48) {
-                    messageObject = { html: `<span style="font-size: ${size}px;">${escapeHTML(msg)}</span>` };
-                    handled = true;
-                }
-            }
-        } else if (command === '/coinflip') {
-            messageObject = { text: Math.random() < 0.5 ? 'Heads' : 'Tails' };
-            handled = true;
-        } else if (command === '/dice') {
-            messageObject = { text: `${Math.floor(Math.random() * 6) + 1}` };
-            handled = true;
-        } else if (command === '/shrug') {
-            messageObject = { text: '¯\\_(ツ)_/¯' };
-            handled = true;
-        }
-
-        if (!handled) {
-            messageObject = { text: text }; // Unrecognized command
-        }
-    } else {
-        messageObject = { text: text }; // Not a command
+        messageObject.text = (messageObject.text || '') + fileBlock;
+        cancelFilePreview();
     }
     
-    if (!messageObject || (!messageObject.text && !messageObject.html)) {
-        return; // Nothing to send
-    }
+    if (!messageObject.text && !messageObject.html) return;
 
     sendButton.disabled = true;
     
     try {
-        messageObject.timestamp = firebase.firestore.FieldValue.serverTimestamp();
-        messageObject.user = { uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL };
-        
         if (messageObject.text) {
             await sendChatMessageWithSpamCheck(messageObject);
         } else {
             await sendMessage(messageObject);
         }
-        
-        messageInput.value = '';
-        cancelFilePreview();
     } catch (error) {
         console.error("Error sending message:", error);
-        alert("Failed to send message.");
-    } finally {
-        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 };
 
@@ -1613,6 +1620,7 @@ const handleCreateServer = async (e) => {
             owner: currentUser.uid,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             members: [currentUser.uid],
+            bannedUsers: [],
             roles: {
                 'owner': { 
                     name: 'Owner', 
@@ -2028,8 +2036,13 @@ const handleAcceptInvite = async (inviteId, inviteData) => {
         await friendRef.update({ friends: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
     } else if (inviteData.type === 'server') {
         const serverRef = db.collection('servers').doc(inviteData.serverId);
-        await serverRef.update({ members: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
-        await serverRef.collection('members').doc(currentUser.uid).set({ roles: ['default'] });
+        const serverDoc = await serverRef.get();
+        if (serverDoc.data().bannedUsers?.includes(currentUser.uid)) {
+            alert("You are banned from this server.");
+        } else {
+            await serverRef.update({ members: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+            await serverRef.collection('members').doc(currentUser.uid).set({ roles: ['default'] });
+        }
     }
     await db.collection('invitations').doc(inviteId).delete();
 };
@@ -2141,9 +2154,6 @@ const handleIncomingCall = async (callData) => {
         return;
     }
     activeCallData = callData;
-    if (document.visibilityState === 'visible') {
-        callSound.play().catch(e => console.warn("Audio play failed.", e));
-    }
     const callerDoc = await db.collection('users').doc(callData.callerId).get();
     const caller = callerDoc.data();
     showCallUI('incoming', caller);
@@ -2237,8 +2247,6 @@ const startCall = async (friend) => {
 
 const answerCall = async () => {
     if (!activeCallData) return;
-    callSound.pause();
-    callSound.currentTime = 0;
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         document.getElementById('local-video').srcObject = localStream;
@@ -2359,8 +2367,6 @@ const showCallUI = (type, peer) => {
 };
 
 const hangUp = async () => {
-    callSound.pause();
-    callSound.currentTime = 0;
     if (peerConnection) {
         peerConnection.close();
         peerConnection = null;
@@ -2496,8 +2502,7 @@ document.getElementById('message-input').addEventListener('input', (e) => {
 
     if (text.startsWith('/')) {
         const searchTerm = text.substring(1).toLowerCase().split(' ')[0];
-        const allowedEmails = ['28gkarfonta@catholiccentral.net', 'ninteenp2@gmail.com'];
-        const isAuthorized = currentUser && allowedEmails.includes(currentUser.email);
+        const isAuthorized = currentUserHasModPermissions();
 
         let filteredCommands = COMMANDS.filter(cmd => {
             if (cmd.restricted && !isAuthorized) {
@@ -2522,8 +2527,8 @@ document.getElementById('home-nav').addEventListener('click', (e) => {
 
         document.querySelectorAll('.home-nav-button').forEach(btn => {
             const isSelected = btn.dataset.tab === tab;
-            btn.classList.toggle('bg-gray-600', isSelected);
-            btn.classList.toggle('text-white', isSelected);
+            btn.classList.toggle('bg-gray-700', isSelected);
+            btn.classList.toggle('text-gray-300', isSelected);
             btn.classList.toggle('text-gray-400', !isSelected);
             btn.classList.toggle('hover:bg-gray-700/50', !isSelected);
         });
@@ -2576,11 +2581,35 @@ document.getElementById('cancel-invite-button').addEventListener('click', () => 
 document.getElementById('invite-form').addEventListener('submit', handleInviteFriend);
 document.getElementById('leave-server-button').addEventListener('click', handleLeaveServer);
 
-// Server/User profile clicks
-document.getElementById('chat-panel').addEventListener('click', (e) => {
-    const userId = e.target.dataset.userid;
-    if (userId) {
-        showUserProfile(userId);
+// Server/User profile clicks and Message Deletion
+document.getElementById('chat-panel').addEventListener('click', async (e) => {
+    // User profile logic
+    const userProfileTrigger = e.target.closest('[data-userid]');
+    if (userProfileTrigger) {
+        showUserProfile(userProfileTrigger.dataset.userid);
+    }
+    
+    // Message deletion logic
+    const deleteButton = e.target.closest('.delete-message-btn');
+    if (deleteButton) {
+        const messageId = deleteButton.dataset.messageId;
+        if (confirm('Are you sure you want to delete this message? This cannot be undone.')) {
+            try {
+                let messageRef;
+                if (activeView === 'servers' && activeServerId && activeChannelId) {
+                    messageRef = db.collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId).collection('messages').doc(messageId);
+                } else if (activeView === 'home' && activeChannelId) {
+                    messageRef = db.collection('dms').doc(activeChannelId).collection('messages').doc(messageId);
+                }
+
+                if (messageRef) {
+                    await messageRef.delete();
+                }
+            } catch (error) {
+                console.error("Error deleting message:", error);
+                alert('Failed to delete message.');
+            }
+        }
     }
 });
 document.getElementById('home-view').addEventListener('click', (e) => {
