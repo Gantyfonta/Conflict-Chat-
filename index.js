@@ -365,6 +365,8 @@ let friendsUnsubscribe = () => {};
 let callListenerUnsubscribe = () => {};
 let currentCallUnsubscribe = () => {};
 let invitationsUnsubscribe = () => {};
+let callerCandidatesUnsubscribe = () => {};
+let calleeCandidatesUnsubscribe = () => {};
 
 // Audio Notifications
 const messageSound = new Audio('https://cdn.pixabay.com/download/audio/2021/08/04/audio_bb630cc098.mp3');
@@ -450,9 +452,8 @@ auth.onAuthStateChanged(async (user) => {
         appErrorOverlay.classList.remove('hidden');
     }
   } else {
-    if (currentUser) {
-        db.collection('users').doc(currentUser.uid).update({ status: 'offline' }).catch((e) => console.error("Failed to update status on logout", e));
-    }
+    // Note: updating status to 'offline' here will fail due to permissions after logout.
+    // The 'beforeunload' event is a better (though imperfect) place for this.
     currentUser = null;
     loginView.classList.remove('hidden');
     appView.classList.add('hidden');
@@ -464,7 +465,6 @@ auth.onAuthStateChanged(async (user) => {
     if(usersUnsubscribe) usersUnsubscribe();
     if(friendsUnsubscribe) friendsUnsubscribe();
     if(callListenerUnsubscribe) callListenerUnsubscribe();
-    if(currentCallUnsubscribe) currentCallUnsubscribe();
     if(invitationsUnsubscribe) invitationsUnsubscribe();
     await hangUp();
   }
@@ -2218,7 +2218,7 @@ const handleIncomingCall = async (callData) => {
 
 
 const startCall = async (friend) => {
-    if (activeCallData) return alert("You are already in a call.");
+    if (activeCallData) return alert("You are already in a a call.");
     
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -2284,11 +2284,14 @@ const startCall = async (friend) => {
         }
     });
 
-    callRef.collection('calleeCandidates').onSnapshot(snapshot => {
+    if (calleeCandidatesUnsubscribe) calleeCandidatesUnsubscribe();
+    calleeCandidatesUnsubscribe = callRef.collection('calleeCandidates').onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
-            if (change.type === 'added' && peerConnection) {
-                const candidate = new RTCIceCandidate(change.doc.data());
-                peerConnection.addIceCandidate(candidate);
+            if (change.type === 'added') {
+                if (peerConnection) {
+                    const candidate = new RTCIceCandidate(change.doc.data());
+                    peerConnection.addIceCandidate(candidate);
+                }
             }
         });
     });
@@ -2345,11 +2348,14 @@ const answerCall = async () => {
         }
     });
 
-    callRef.collection('callerCandidates').onSnapshot(snapshot => {
+    if (callerCandidatesUnsubscribe) callerCandidatesUnsubscribe();
+    callerCandidatesUnsubscribe = callRef.collection('callerCandidates').onSnapshot(snapshot => {
         snapshot.docChanges().forEach(change => {
-            if (change.type === 'added' && peerConnection) {
-                const candidate = new RTCIceCandidate(change.doc.data());
-                peerConnection.addIceCandidate(candidate);
+            if (change.type === 'added') {
+                 if (peerConnection) {
+                    const candidate = new RTCIceCandidate(change.doc.data());
+                    peerConnection.addIceCandidate(candidate);
+                }
             }
         });
     });
@@ -2447,6 +2453,14 @@ const hangUp = async () => {
     if (currentCallUnsubscribe) {
         currentCallUnsubscribe();
         currentCallUnsubscribe = null;
+    }
+    if (callerCandidatesUnsubscribe) {
+        callerCandidatesUnsubscribe();
+        callerCandidatesUnsubscribe = null;
+    }
+    if (calleeCandidatesUnsubscribe) {
+        calleeCandidatesUnsubscribe();
+        calleeCandidatesUnsubscribe = null;
     }
     
     if (activeCallData) {
