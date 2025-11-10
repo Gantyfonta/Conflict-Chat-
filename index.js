@@ -392,8 +392,34 @@ const iceServers = {
 
 
 // =================================================================================
-// Authentication
+// Authentication & Notifications
 // =================================================================================
+
+const requestNotificationPermission = () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                console.log('Notification permission granted.');
+            } else {
+                console.log('Notification permission denied.');
+            }
+        });
+    }
+};
+
+const showMissedCallNotification = (caller) => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+        return;
+    }
+    const title = 'Missed Call';
+    const options = {
+        body: `You missed a call from ${caller.displayName}.`,
+        icon: isValidHttpUrl(caller.photoURL) ? caller.photoURL : null,
+        tag: `missed-call-${caller.id}`
+    };
+    new Notification(title, options);
+};
+
 auth.onAuthStateChanged(async (user) => {
   const loginView = document.getElementById('login-view');
   const appView = document.getElementById('app-view');
@@ -434,6 +460,7 @@ auth.onAuthStateChanged(async (user) => {
       setupCallListener();
       setupInvitationsListener();
       selectHome(); // Default to home view on login
+      requestNotificationPermission(); // Ask for notification permissions
 
       if (localStorage.getItem('adsEnabled') === 'true') {
           const homeAd = document.getElementById('home-ad-container');
@@ -2288,6 +2315,9 @@ const handleIncomingCall = async (callData) => {
     currentCallUnsubscribe = db.collection('calls').doc(callData.id).onSnapshot((snapshot) => {
         if (!snapshot.exists || snapshot.data().status === 'ended') {
             console.log("Call was cancelled by caller or ended.");
+            if (document.hidden && activeCallData && activeCallData.status === 'ringing') {
+                showMissedCallNotification(caller);
+            }
             hangUp();
         }
     });
