@@ -336,6 +336,7 @@ const MIC_OFF_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="current
 const CAM_ON_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`;
 const CAM_OFF_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18"></path></svg>`;
 const HANGUP_SVG = `<svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.218,2.282a1.042,1.042,0,0,0-1.474,0l-1.7,1.7-2.31-2.31a3.03,3.03,0,0,0-4.286,0L2.282,6.839a3.03,3.03,0,0,0,0,4.286l3.3,3.3-2.24,2.24a1.042,1.042,0,0,0,0,1.474l3.78,3.78a1.042,1.042,0,0,0,1.474,0l2.24-2.24,3.3,3.3a3.03,3.03,0,0,0,4.286,0l4.834-4.834a3.03,3.03,0,0,0,0-4.286L17.218,2.282Z"></path></svg>`;
+const SCREEN_SHARE_ON_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>`;
 
 
 // =================================================================================
@@ -378,6 +379,8 @@ let peerConnection;
 let localStream;
 let remoteStream = new MediaStream();
 let activeCallData = null;
+let isScreenSharing = false;
+let screenStream = null;
 const iceServers = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -2167,7 +2170,7 @@ const toggleMute = () => {
 };
 
 const toggleCamera = () => {
-    if (!localStream) return;
+    if (!localStream || isScreenSharing) return; // Don't toggle camera if sharing screen
     const videoTrack = localStream.getVideoTracks()[0];
     const camButton = document.getElementById('toggle-camera-button');
     if (videoTrack && camButton) {
@@ -2179,6 +2182,69 @@ const toggleCamera = () => {
         camButton.classList.toggle('hover:bg-red-600', !isEnabled);
         camButton.classList.toggle('bg-gray-600/80', isEnabled);
         camButton.innerHTML = isEnabled ? CAM_ON_SVG : CAM_OFF_SVG;
+    }
+};
+
+const toggleScreenShare = async () => {
+    if (!peerConnection || !localStream) return;
+
+    const videoSender = peerConnection.getSenders().find(sender => sender.track && sender.track.kind === 'video');
+    if (!videoSender) {
+        console.error("No video sender found to replace track.");
+        return;
+    }
+
+    const screenShareButton = document.getElementById('toggle-screen-share-button');
+
+    if (isScreenSharing) {
+        // Stop sharing and revert to camera
+        if (screenStream) {
+            screenStream.getTracks().forEach(track => track.stop());
+            screenStream = null;
+        }
+
+        try {
+            const newCameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const newCameraTrack = newCameraStream.getVideoTracks()[0];
+            await videoSender.replaceTrack(newCameraTrack);
+
+            const oldTrack = localStream.getVideoTracks()[0];
+            localStream.removeTrack(oldTrack);
+            localStream.addTrack(newCameraTrack);
+            document.getElementById('local-video').srcObject = localStream;
+
+            isScreenSharing = false;
+            screenShareButton.classList.remove('bg-green-500', 'hover:bg-green-600');
+            screenShareButton.classList.add('bg-gray-600/80', 'hover:bg-gray-500/80');
+            screenShareButton.innerHTML = SCREEN_SHARE_ON_SVG;
+            screenShareButton.setAttribute('aria-label', 'Share screen');
+
+        } catch (error) {
+            console.error("Error getting camera for fallback:", error);
+            // Handle error, maybe hang up or show a message
+        }
+    } else {
+        // Start sharing screen
+        try {
+            screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            const screenTrack = screenStream.getVideoTracks()[0];
+            await videoSender.replaceTrack(screenTrack);
+            document.getElementById('local-video').srcObject = screenStream;
+            isScreenSharing = true;
+
+            screenShareButton.classList.add('bg-green-500', 'hover:bg-green-600');
+            screenShareButton.classList.remove('bg-gray-600/80', 'hover:bg-gray-500/80');
+            screenShareButton.setAttribute('aria-label', 'Stop sharing screen');
+
+            screenTrack.onended = () => {
+                if (isScreenSharing) {
+                    toggleScreenShare();
+                }
+            };
+        } catch (error) {
+            console.error("Error starting screen share:", error);
+            isScreenSharing = false;
+        }
     }
 };
 
@@ -2413,10 +2479,12 @@ const showCallUI = (type, peer) => {
         controls.innerHTML = `
             <button id="toggle-mic-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Mute microphone" data-muted="false">${MIC_ON_SVG}</button>
             <button id="toggle-camera-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Turn off camera" data-enabled="true">${CAM_ON_SVG}</button>
+            <button id="toggle-screen-share-button" class="w-14 h-14 bg-gray-600/80 rounded-full flex items-center justify-center hover:bg-gray-500/80" aria-label="Share screen">${SCREEN_SHARE_ON_SVG}</button>
             <button id="hang-up-button" class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Hang up">${HANGUP_SVG}</button>
         `;
         document.getElementById('toggle-mic-button').onclick = toggleMute;
         document.getElementById('toggle-camera-button').onclick = toggleCamera;
+        document.getElementById('toggle-screen-share-button').onclick = toggleScreenShare;
         document.getElementById('hang-up-button').onclick = hangUp;
     }
 };
@@ -2430,6 +2498,11 @@ const hangUp = async () => {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
     }
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop());
+        screenStream = null;
+    }
+    isScreenSharing = false;
     remoteStream = new MediaStream();
     
     // Cleanup UI
