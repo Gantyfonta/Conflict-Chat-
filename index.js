@@ -758,6 +758,42 @@ const renderFriends = (friends) => {
     });
 };
 
+const renderPoll = (msg) => {
+    const poll = msg.poll;
+    if (!poll) return '';
+
+    const totalVotes = poll.options.reduce((sum, opt) => sum + (opt.votes?.length || 0), 0);
+
+    const optionsHTML = poll.options.map((option, index) => {
+        const voteCount = option.votes?.length || 0;
+        const percentage = totalVotes > 0 ? (voteCount / totalVotes) * 100 : 0;
+        const hasVoted = option.votes?.includes(currentUser.uid);
+
+        return `
+            <button 
+                class="poll-option-button w-full mt-2 text-left p-2 rounded-md border transition-colors ${hasVoted ? 'bg-blue-500/30 border-blue-400' : 'bg-gray-900/50 border-gray-600 hover:bg-gray-900'}"
+                data-message-id="${msg.id}" 
+                data-option-index="${index}"
+            >
+                <div class="flex justify-between items-center text-sm font-semibold text-gray-200">
+                    <span>${escapeHTML(option.text)}</span>
+                    <span>${voteCount} vote(s)</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2.5 mt-2">
+                    <div class="bg-blue-500 h-2.5 rounded-full" style="width: ${percentage}%"></div>
+                </div>
+            </button>
+        `;
+    }).join('');
+
+    return `
+        <div class="poll-container p-3 border border-gray-600 rounded-lg bg-gray-800 mt-2">
+            <strong class="text-white">${escapeHTML(poll.question)}</strong>
+            <div class="mt-2">${optionsHTML}</div>
+        </div>
+    `;
+}
+
 const renderMessages = (messages) => {
     const messageList = document.getElementById('message-list');
     if (!messageList) return;
@@ -769,8 +805,11 @@ const renderMessages = (messages) => {
     messageList.innerHTML = ''; // Clear existing messages
 
     const renderMessageContent = (msg) => {
+        if (msg.type === 'poll') {
+            return renderPoll(msg);
+        }
         if (msg.html) {
-            return msg.html; // Already safe HTML from a command
+            return msg.html;
         }
         if (msg.text) {
             return formatMessageText(msg.text);
@@ -836,7 +875,7 @@ const renderMessages = (messages) => {
                         <span class="font-semibold mr-2 cursor-pointer" style="color: ${roleColor};" data-userid="${msg.user.uid}">${displayName}</span>
                         <span class="text-xs text-gray-500">${timestamp}</span>
                     </div>
-                    ${msg.text || msg.html ? `<div class="text-gray-300 whitespace-pre-wrap break-all">${renderMessageContent(msg)}</div>` : ''}
+                    ${msg.text || msg.html || msg.poll ? `<div class="text-gray-300 whitespace-pre-wrap break-all">${renderMessageContent(msg)}</div>` : ''}
                 </div>
             `;
         }
@@ -1395,7 +1434,7 @@ const selectDmChannel = async (friend) => {
                 <h2 class="font-semibold text-lg text-white">${friend.displayName}</h2>
             </div>
             <button id="start-call-button" class="ml-auto text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-600">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2-2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>
             </button>
         `;
         document.getElementById('start-call-button').onclick = () => startCall(friend);
@@ -1418,7 +1457,7 @@ const sendMessage = async (messageData) => {
         const newMsgRef = messagesRef.doc(); // Get ref before adding
         batch.set(newMsgRef, messageData);
         batch.update(channelRef, { lastMessage: {
-            text: messageData.text?.substring(0, 40) || messageData.html || 'File sent',
+            text: messageData.poll ? 'Poll: ' + messageData.poll.question.substring(0, 30) : (messageData.text?.substring(0, 40) || 'File sent'),
             timestamp: messageData.timestamp
         }});
         await batch.commit();
@@ -1560,9 +1599,19 @@ const handleSendMessage = async (e) => {
                 const pollParts = text.match(/"([^"]*)"/g);
                 if (pollParts && pollParts.length >= 2) {
                     const question = pollParts[0].slice(1, -1);
-                    const options = pollParts.slice(1).map(opt => opt.slice(1, -1));
-                    let optionsHTML = options.map(opt => `<li class="p-2 border border-gray-600 rounded-md mt-1">${escapeHTML(opt)}</li>`).join('');
-                    messageObject.html = `<div class="p-3 border border-gray-600 rounded-lg bg-gray-800"><strong class="text-white">${escapeHTML(question)}</strong><ul class="list-none p-0 mt-2">${optionsHTML}</ul></div>`;
+                    const options = pollParts.slice(1, 11).map(opt => ({
+                        text: opt.slice(1, -1),
+                        votes: []
+                    }));
+                    
+                    messageObject.type = 'poll';
+                    messageObject.poll = {
+                        question: question,
+                        options: options
+                    };
+                    delete messageObject.html;
+                } else {
+                    commandHandled = true; // Malformed command, do nothing.
                 }
                 break;
             case '/shrug':
@@ -1592,7 +1641,7 @@ const handleSendMessage = async (e) => {
         cancelFilePreview();
     }
     
-    if (!messageObject.text && !messageObject.html) return;
+    if (!messageObject.text && !messageObject.html && !messageObject.poll) return;
 
     sendButton.disabled = true;
     
@@ -2608,6 +2657,48 @@ document.getElementById('chat-panel').addEventListener('click', async (e) => {
             } catch (error) {
                 console.error("Error deleting message:", error);
                 alert('Failed to delete message.');
+            }
+        }
+    }
+    // Poll voting logic
+    const pollButton = e.target.closest('.poll-option-button');
+    if (pollButton) {
+        const messageId = pollButton.dataset.messageId;
+        const optionIndex = parseInt(pollButton.dataset.optionIndex, 10);
+
+        let messageRef;
+        if (activeView === 'servers' && activeServerId && activeChannelId) {
+            messageRef = db.collection('servers').doc(activeServerId).collection('channels').doc(activeChannelId).collection('messages').doc(messageId);
+        } else if (activeView === 'home' && activeChannelId) {
+            messageRef = db.collection('dms').doc(activeChannelId).collection('messages').doc(messageId);
+        }
+
+        if (messageRef) {
+            try {
+                await db.runTransaction(async (transaction) => {
+                    const messageDoc = await transaction.get(messageRef);
+                    if (!messageDoc.exists || messageDoc.data().type !== 'poll') return;
+
+                    const data = messageDoc.data();
+                    const pollData = data.poll;
+                    
+                    const newOptions = pollData.options.map((opt) => {
+                        const votes = (opt.votes || []).filter(uid => uid !== currentUser.uid);
+                        return { ...opt, votes };
+                    });
+
+                    const targetOption = newOptions[optionIndex];
+                    const hasVotedForThis = pollData.options[optionIndex].votes?.includes(currentUser.uid);
+
+                    if (!hasVotedForThis) {
+                        targetOption.votes.push(currentUser.uid);
+                    }
+                    
+                    transaction.update(messageRef, { 'poll.options': newOptions });
+                });
+            } catch (error) {
+                console.error("Error updating poll:", error);
+                alert("Could not register your vote. Please try again.");
             }
         }
     }
