@@ -1,28 +1,49 @@
-// Since we are using the compat libraries loaded via script tags in index.html,
-// the firebase object is available globally.
+import { initializeApp } from 'firebase/app';
+import { 
+    getAuth, 
+    GoogleAuthProvider, 
+    onAuthStateChanged, 
+    signInWithPopup, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut,
+    updateProfile
+} from 'firebase/auth';
+import { 
+    getFirestore, 
+    collection, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    addDoc, 
+    onSnapshot, 
+    serverTimestamp,
+    getDocs,
+    deleteDoc,
+    updateDoc
+} from 'firebase/firestore';
+
 
 // =================================================================================
 // Firebase Configuration
 // =================================================================================
-// Configuration provided by the user.
 const firebaseConfig = {
-  apiKey: "AIzaSyCvxyd9Q37Zu4wMv-dGhcrom-En2Ja9n0o",
-  authDomain: "chat-8c7f5.firebaseapp.com",
-  projectId: "chat-8c7f5",
-  storageBucket: "chat-8c7f5.appspot.com",
-  messagingSenderId: "566550384400",
-  appId: "1:566550384400:web:6438e3fb134edfc6649f95",
-  measurementId: "G-ZV55RSVRX6"
+  apiKey: "AIzaSyDXUJ2ooY5S_pR2liDGe-afRZhNo0RI8Zs",
+  authDomain: "latinfroggame.firebaseapp.com",
+  databaseURL: "https://latinfroggame-default-rtdb.firebaseio.com",
+  projectId: "latinfroggame",
+  storageBucket: "latinfroggame.firebasestorage.app",
+  messagingSenderId: "196302891263",
+  appId: "1:196302891263:web:0b2fd634738f890580c4ca",
+  measurementId: "G-S5H91BQYMB"
 };
 
 
 // Initialize Firebase
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
-const auth = firebase.auth();
-const db = firebase.firestore();
-const provider = new firebase.auth.GoogleAuthProvider();
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const provider = new GoogleAuthProvider();
 
 // =================================================================================
 // Constants
@@ -57,23 +78,23 @@ const iceServers = {
 // Authentication
 // =================================================================================
 
-auth.onAuthStateChanged(async (user) => {
+onAuthStateChanged(auth, async (user) => {
   const loginView = document.getElementById('login-view');
   const appView = document.getElementById('app-view');
 
   if (user) {
-      const userDocRef = db.collection('users').doc(user.uid);
-      const userDoc = await userDocRef.get();
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
 
-      if (!userDoc.exists) {
+      if (!userDoc.exists()) {
         const displayName = user.displayName || user.email.split('@')[0];
         const photoURL = user.photoURL || `https://i.pravatar.cc/64?u=${user.uid}`;
 
         if (!user.displayName || !user.photoURL) {
-          await user.updateProfile({ displayName, photoURL });
+          await updateProfile(user, { displayName, photoURL });
         }
         
-        await userDocRef.set({ displayName, photoURL });
+        await setDoc(userDocRef, { displayName, photoURL });
         currentUser = { uid: user.uid, displayName, photoURL, email: user.email };
       } else {
         const userData = userDoc.data();
@@ -106,7 +127,7 @@ const clearLoginError = () => {
 
 const signInWithGoogle = () => {
     clearLoginError();
-    auth.signInWithPopup(provider).catch((error) => {
+    signInWithPopup(auth, provider).catch((error) => {
         let message = "An unknown error occurred during Google sign-in.";
         switch (error.code) {
             case 'auth/popup-closed-by-user': message = 'Sign-in cancelled.'; break;
@@ -124,7 +145,7 @@ const handleSignUp = async (e) => {
     const email = signupEmailInput.value;
     const password = signupPasswordInput.value;
     try {
-        await auth.createUserWithEmailAndPassword(email, password);
+        await createUserWithEmailAndPassword(auth, email, password);
     } catch (error) {
         let message = "An unknown error occurred.";
         switch (error.code) {
@@ -144,7 +165,7 @@ const handleSignIn = async (e) => {
     const email = signinEmailInput.value;
     const password = signinPasswordInput.value;
     try {
-        await auth.signInWithEmailAndPassword(email, password);
+        await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
         let message = "An unknown error occurred.";
         switch(error.code) {
@@ -156,7 +177,7 @@ const handleSignIn = async (e) => {
     }
 };
 
-const signOut = () => auth.signOut().catch((error) => console.error("Sign out error", error));
+const handleSignOut = () => signOut(auth).catch((error) => console.error("Sign out error", error));
 
 // =================================================================================
 // UI Rendering Functions
@@ -247,7 +268,8 @@ const handleCreateRoom = async () => {
         return;
     }
 
-    const roomRef = db.collection('rooms').doc();
+    const roomCollection = collection(db, 'rooms');
+    const roomRef = doc(roomCollection);
     activeRoomId = roomRef.id;
 
     peerConnection = new RTCPeerConnection(iceServers);
@@ -256,10 +278,10 @@ const handleCreateRoom = async () => {
 
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-    const callerCandidatesCollection = roomRef.collection('callerCandidates');
+    const callerCandidatesCollection = collection(roomRef, 'callerCandidates');
     peerConnection.onicecandidate = event => {
         if (event.candidate) {
-            callerCandidatesCollection.add(event.candidate.toJSON());
+            addDoc(callerCandidatesCollection, event.candidate.toJSON());
         }
     };
 
@@ -274,18 +296,18 @@ const handleCreateRoom = async () => {
 
     const roomWithOffer = {
         creatorId: currentUser.uid,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: serverTimestamp(),
         offer: {
             type: offer.type,
             sdp: offer.sdp,
         },
     };
-    await roomRef.set(roomWithOffer);
+    await setDoc(roomRef, roomWithOffer);
 
     showRoomUI('waiting');
 
-    roomUnsubscribe = roomRef.onSnapshot(async snapshot => {
-        if (!snapshot.exists) {
+    roomUnsubscribe = onSnapshot(roomRef, async snapshot => {
+        if (!snapshot.exists()) {
             console.log("Room deleted, hanging up.");
             hangUp();
             return;
@@ -299,7 +321,7 @@ const handleCreateRoom = async () => {
         }
     });
 
-    roomRef.collection('calleeCandidates').onSnapshot(snapshot => {
+    onSnapshot(collection(roomRef, 'calleeCandidates'), snapshot => {
         snapshot.docChanges().forEach(async change => {
             if (change.type === 'added') {
                 let data = change.doc.data();
@@ -314,11 +336,11 @@ const handleJoinRoom = async (e) => {
     if (activeRoomId) return;
     
     const roomId = document.getElementById('room-code-input').value;
-    const roomRef = db.collection('rooms').doc(roomId);
-    const roomDoc = await roomRef.get();
+    const roomRef = doc(db, 'rooms', roomId);
+    const roomDoc = await getDoc(roomRef);
     const joinError = document.getElementById('join-error');
 
-    if (!roomDoc.exists) {
+    if (!roomDoc.exists()) {
         joinError.textContent = 'Room not found.';
         return;
     }
@@ -350,10 +372,10 @@ const handleJoinRoom = async (e) => {
 
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-    const calleeCandidatesCollection = roomRef.collection('calleeCandidates');
+    const calleeCandidatesCollection = collection(roomRef, 'calleeCandidates');
     peerConnection.onicecandidate = event => {
         if (event.candidate) {
-            calleeCandidatesCollection.add(event.candidate.toJSON());
+            addDoc(calleeCandidatesCollection, event.candidate.toJSON());
         }
     };
     
@@ -376,17 +398,17 @@ const handleJoinRoom = async (e) => {
             sdp: answer.sdp,
         },
     };
-    await roomRef.update(roomWithAnswer);
+    await updateDoc(roomRef, roomWithAnswer);
     showRoomUI('connected');
 
-    roomUnsubscribe = roomRef.onSnapshot(snapshot => {
-        if (!snapshot.exists) {
+    roomUnsubscribe = onSnapshot(roomRef, snapshot => {
+        if (!snapshot.exists()) {
             console.log("Room deleted, hanging up.");
             hangUp();
         }
     });
 
-    roomRef.collection('callerCandidates').onSnapshot(snapshot => {
+    onSnapshot(collection(roomRef, 'callerCandidates'), snapshot => {
         snapshot.docChanges().forEach(async change => {
             if (change.type === 'added') {
                 let data = change.doc.data();
@@ -408,16 +430,16 @@ const hangUp = async () => {
     if (roomUnsubscribe) roomUnsubscribe();
 
     if (activeRoomId) {
-        const roomRef = db.collection('rooms').doc(activeRoomId);
-        const roomDoc = await roomRef.get();
-        if (roomDoc.exists && roomDoc.data().creatorId === currentUser.uid) {
+        const roomRef = doc(db, 'rooms', activeRoomId);
+        const roomDoc = await getDoc(roomRef);
+        if (roomDoc.exists() && roomDoc.data().creatorId === currentUser.uid) {
              // Delete all subcollection documents first
-            const callerCandidates = await roomRef.collection('callerCandidates').get();
-            callerCandidates.forEach(async doc => await doc.ref.delete());
-            const calleeCandidates = await roomRef.collection('calleeCandidates').get();
-            calleeCandidates.forEach(async doc => await doc.ref.delete());
+            const callerCandidates = await getDocs(collection(roomRef, 'callerCandidates'));
+            callerCandidates.forEach(async doc => await deleteDoc(doc.ref));
+            const calleeCandidates = await getDocs(collection(roomRef, 'calleeCandidates'));
+            calleeCandidates.forEach(async doc => await deleteDoc(doc.ref));
             // Then delete the room
-            await roomRef.delete();
+            await deleteDoc(roomRef);
         }
     }
     
@@ -495,7 +517,7 @@ document.getElementById('show-signup-link').addEventListener('click', (e) => {
     document.getElementById('signup-form').classList.remove('hidden');
     clearLoginError();
 });
-document.querySelectorAll('.signout-button').forEach(btn => btn.addEventListener('click', signOut));
+document.querySelectorAll('.signout-button').forEach(btn => btn.addEventListener('click', handleSignOut));
 
 // Room Lobby
 document.getElementById('create-room-button').addEventListener('click', handleCreateRoom);
