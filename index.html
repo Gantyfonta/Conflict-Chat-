@@ -3,7 +3,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='white'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M21%2015a2%202%200%200%201-2%202H7l-4%204V5a2%202%200%200%201%202-2h14a2%202%200%200%201%202%202z'/%3E%3C/svg%3E" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%2339D3BB'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M21%2015a2%202%200%200%201-2%202H7l-4%204V5a2%202%200%200%201%202-2h14a2%202%200%200%201%202%202z'/%3E%3C/svg%3E" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Conflict</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -22,6 +22,10 @@
         }
         body { background-color: var(--color-gray-900); }
         .role-dragging { opacity: 0.5; background-color: var(--color-gray-600); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--color-gray-600); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--color-gray-500); }
     </style>
     <script>
       tailwind.config = {
@@ -45,48 +49,48 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   </head>
-  <body class="bg-gray-900 text-gray-300 font-sans">
+  <body class="bg-gray-900 text-gray-300 font-sans antialiased overflow-hidden">
     <!-- Login View -->
-    <div id="login-view" class="flex items-center justify-center h-screen bg-gray-800">
-      <div class="w-full max-w-sm p-8 space-y-6 bg-gray-700 rounded-xl shadow-2xl">
+    <div id="login-view" class="flex items-center justify-center h-screen bg-gray-900">
+      <div class="w-full max-w-sm p-8 space-y-6 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
         <div class="text-center">
-          <h1 class="text-4xl font-black text-white tracking-tighter uppercase italic">Conflict</h1>
-          <p class="mt-2 text-gray-400 text-sm">Real-time chat platform.</p>
+          <h1 class="text-5xl font-black text-white tracking-tighter uppercase italic leading-none">Conflict</h1>
+          <p class="mt-3 text-gray-500 text-sm font-medium">Your space to talk and belong.</p>
         </div>
-        <div id="email-auth-container">
+        <div id="email-auth-container" class="space-y-4">
             <form id="signup-form" class="space-y-4">
                 <h2 class="text-lg font-bold text-white">Create Account</h2>
                 <div>
-                    <label class="text-[10px] font-black uppercase text-gray-500">Email</label>
-                    <input id="signup-email" type="email" required class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                    <label class="text-[10px] font-black uppercase text-gray-500 tracking-wider">Email</label>
+                    <input id="signup-email" type="email" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 mt-1 text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all">
                 </div>
                 <div>
-                    <label class="text-[10px] font-black uppercase text-gray-500">Password</label>
-                    <input id="signup-password" type="password" required minlength="6" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                    <label class="text-[10px] font-black uppercase text-gray-500 tracking-wider">Password</label>
+                    <input id="signup-password" type="password" required minlength="6" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 mt-1 text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all">
                 </div>
-                <button type="submit" class="w-full py-2 font-bold text-gray-900 bg-blue-500 rounded hover:opacity-90 transition">Sign Up</button>
-                <p class="text-center text-xs text-gray-400">Already have an account? <a href="#" id="show-signin-link" class="text-blue-400 hover:underline">Sign In</a></p>
+                <button type="submit" class="w-full py-3 font-black text-gray-900 bg-blue-500 rounded-lg hover:brightness-110 transition active:scale-[0.98]">Sign Up</button>
+                <p class="text-center text-xs text-gray-500">Already have an account? <a href="#" id="show-signin-link" class="text-blue-400 hover:underline font-bold">Sign In</a></p>
             </form>
             <form id="signin-form" class="space-y-4 hidden">
                 <h2 class="text-lg font-bold text-white">Welcome Back</h2>
                 <div>
-                    <label class="text-[10px] font-black uppercase text-gray-500">Email</label>
-                    <input id="signin-email" type="email" required class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                    <label class="text-[10px] font-black uppercase text-gray-500 tracking-wider">Email</label>
+                    <input id="signin-email" type="email" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 mt-1 text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all">
                 </div>
                 <div>
-                    <label class="text-[10px] font-black uppercase text-gray-500">Password</label>
-                    <input id="signin-password" type="password" required class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                    <label class="text-[10px] font-black uppercase text-gray-500 tracking-wider">Password</label>
+                    <input id="signin-password" type="password" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 mt-1 text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all">
                 </div>
-                <button type="submit" class="w-full py-2 font-bold text-gray-900 bg-blue-500 rounded hover:opacity-90 transition">Sign In</button>
-                <p class="text-center text-xs text-gray-400">No account? <a href="#" id="show-signup-link" class="text-blue-400 hover:underline">Create one</a></p>
+                <button type="submit" class="w-full py-3 font-black text-gray-900 bg-blue-500 rounded-lg hover:brightness-110 transition active:scale-[0.98]">Sign In</button>
+                <p class="text-center text-xs text-gray-500">No account? <a href="#" id="show-signup-link" class="text-blue-400 hover:underline font-bold">Create one</a></p>
             </form>
         </div>
         <div class="relative flex items-center py-2">
-            <div class="flex-grow border-t border-gray-600"></div>
-            <span class="px-3 text-gray-500 text-[10px] font-black">OR</span>
-            <div class="flex-grow border-t border-gray-600"></div>
+            <div class="flex-grow border-t border-gray-700"></div>
+            <span class="px-3 text-gray-600 text-[10px] font-black uppercase tracking-widest">Or</span>
+            <div class="flex-grow border-t border-gray-700"></div>
         </div>
-        <button id="login-button" class="w-full flex items-center justify-center py-2 font-bold text-gray-800 bg-white rounded hover:bg-gray-100 transition">
+        <button id="login-button" class="w-full flex items-center justify-center py-3 font-bold text-gray-300 bg-gray-900 border border-gray-700 rounded-lg hover:bg-gray-700 transition active:scale-[0.98]">
           <svg class="w-5 h-5 mr-3" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.222 0-9.582-3.651-11.181-8.584l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.021 35.596 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"></path></svg>
           <span>Continue with Google</span>
         </button>
@@ -94,37 +98,37 @@
     </div>
 
     <!-- Main App View -->
-    <div id="app-view" class="hidden h-screen flex relative overflow-hidden">
-      <div id="server-list-container" class="w-16 bg-gray-900 py-3 flex flex-col items-center space-y-2 border-r border-black overflow-y-auto"></div>
+    <div id="app-view" class="hidden h-screen flex relative overflow-hidden bg-gray-900">
+      <div id="server-list-container" class="w-16 bg-gray-900 py-3 flex flex-col items-center space-y-2 border-r border-black overflow-y-auto no-scrollbar"></div>
       
       <!-- Home View / Friends List -->
-      <div id="home-view" class="w-60 bg-gray-800 flex-col hidden border-r border-gray-600 transition-all">
+      <div id="home-view" class="w-60 bg-gray-800 flex-col hidden border-r border-gray-900 transition-all duration-300">
         <header class="px-4 h-12 flex items-center justify-between shadow-sm border-b border-gray-900 flex-shrink-0">
-            <h1 id="home-view-title" class="font-bold text-white text-sm">Home</h1>
-            <button id="toggle-home-panel-button" class="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded transition"></button>
+            <h1 id="home-view-title" class="font-bold text-white text-sm uppercase tracking-tighter">Home</h1>
+            <button id="toggle-home-panel-button" class="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700 rounded-lg transition"></button>
         </header>
         <div id="home-view-content" class="flex-1 flex flex-col overflow-hidden">
-            <div id="home-nav" class="flex p-2 border-b border-gray-700 text-[10px] font-black uppercase tracking-widest flex-shrink-0 space-x-1">
-                <button data-tab="friends" class="home-nav-button px-2 py-1 rounded bg-gray-700 text-white">Friends</button>
-                <button data-tab="pending" class="home-nav-button px-2 py-1 rounded text-gray-500 hover:bg-gray-700 relative">Pending <span id="pending-invites-badge" class="hidden absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white text-[8px] rounded-full flex items-center justify-center"></span></button>
+            <div id="home-nav" class="flex p-2 border-b border-gray-900 text-[10px] font-black uppercase tracking-widest flex-shrink-0 space-x-1">
+                <button data-tab="friends" class="home-nav-button flex-1 px-2 py-1.5 rounded-lg bg-gray-700 text-white transition-colors">Friends</button>
+                <button data-tab="pending" class="home-nav-button flex-1 px-2 py-1.5 rounded-lg text-gray-500 hover:bg-gray-700 relative transition-colors">Pending <span id="pending-invites-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold"></span></button>
             </div>
             <div class="flex-1 overflow-y-auto">
                 <div id="friends-tab-panel">
-                    <div class="p-2 border-b border-gray-700">
+                    <div class="p-3 border-b border-gray-700 bg-gray-900/20">
                         <form id="add-friend-form">
-                            <input id="add-friend-input" type="text" class="w-full bg-gray-900 text-xs rounded p-2 text-gray-300 outline-none focus:ring-1 focus:ring-blue-500" placeholder="Enter Friend Code">
-                            <p id="add-friend-status" class="text-[9px] mt-1 h-3"></p>
+                            <input id="add-friend-input" type="text" class="w-full bg-gray-900 text-xs rounded-lg p-2.5 text-gray-300 border border-gray-700 outline-none focus:ring-2 focus:ring-blue-500/30 transition-all" placeholder="Enter Friend Code">
+                            <p id="add-friend-status" class="text-[9px] mt-1.5 px-1 h-3 font-bold uppercase tracking-tighter"></p>
                         </form>
                     </div>
                     <nav id="friend-list" class="p-2 space-y-0.5"></nav>
                 </div>
                 <div id="pending-tab-panel" class="hidden p-2 space-y-1"></div>
             </div>
-            <footer class="h-14 bg-gray-900 p-2 flex items-center justify-between border-t border-gray-800">
-                <button class="user-info-panel flex items-center truncate text-left hover:bg-gray-700/50 p-1.5 rounded flex-1 min-w-0"></button>
+            <footer class="h-14 bg-gray-900/80 backdrop-blur-md p-2 flex items-center justify-between border-t border-gray-900">
+                <button class="user-info-panel flex items-center truncate text-left hover:bg-gray-700/50 p-1.5 rounded-lg flex-1 min-w-0 transition-all"></button>
                 <div class="flex items-center ml-1">
-                     <button class="settings-button p-2 text-gray-500 hover:text-white rounded hover:bg-gray-800 transition">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                     <button class="settings-button p-2 text-gray-500 hover:text-white rounded-lg hover:bg-gray-800 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                      </button>
                 </div>
             </footer>
@@ -132,27 +136,27 @@
     </div>
 
       <!-- Channel List Panel -->
-      <div id="channel-list-panel" class="w-60 bg-gray-800 flex-col hidden border-r border-gray-600">
-        <header id="server-name-header" class="px-4 h-12 flex items-center justify-between shadow-sm border-b border-gray-900 relative">
-            <span id="server-name-text" class="font-bold text-white text-sm truncate"></span>
-            <button id="server-options-button" class="text-gray-500 hover:text-white">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+      <div id="channel-list-panel" class="w-60 bg-gray-800 flex-col hidden border-r border-gray-900 transition-all duration-300">
+        <header id="server-name-header" class="px-4 h-12 flex items-center justify-between shadow-sm border-b border-gray-900 relative cursor-pointer hover:bg-gray-700/30 transition-colors">
+            <span id="server-name-text" class="font-bold text-white text-sm truncate uppercase tracking-tighter"></span>
+            <button id="server-options-button" class="text-gray-500 hover:text-white transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
             </button>
-            <div id="server-options-dropdown" class="hidden absolute right-0 top-12 mt-1 w-52 bg-gray-900 rounded shadow-xl z-20 border border-gray-700">
-                <div class="py-1">
-                    <button id="invite-button" class="w-full text-left px-4 py-2 text-xs text-blue-400 font-bold hover:bg-blue-500 hover:text-white transition">Invite People</button>
-                    <button id="open-server-settings-button" class="w-full text-left px-4 py-2 text-xs text-gray-300 hover:bg-gray-700 hidden transition">Server Settings</button>
-                    <div class="border-t border-gray-800 mx-2 my-1"></div>
-                    <button id="leave-server-button" class="w-full text-left px-4 py-2 text-xs text-red-400 font-bold hover:bg-red-500 hover:text-white transition">Leave Server</button>
+            <div id="server-options-dropdown" class="hidden absolute right-3 left-3 top-13 mt-1 bg-gray-900 rounded-xl shadow-2xl z-20 border border-gray-800 overflow-hidden ring-1 ring-black/50">
+                <div class="p-1.5 space-y-0.5">
+                    <button id="invite-button" class="w-full text-left px-3 py-2 text-xs text-blue-400 font-bold hover:bg-blue-500 hover:text-white rounded-lg transition-colors flex items-center justify-between">Invite People <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg></button>
+                    <button id="open-server-settings-button" class="w-full text-left px-3 py-2 text-xs text-gray-300 font-bold hover:bg-gray-700 hover:text-white rounded-lg hidden transition-colors flex items-center justify-between">Server Settings <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                    <div class="border-t border-gray-800 my-1 mx-1"></div>
+                    <button id="leave-server-button" class="w-full text-left px-3 py-2 text-xs text-red-500 font-bold hover:bg-red-500 hover:text-white rounded-lg transition-colors flex items-center justify-between">Leave Server <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
                 </div>
             </div>
         </header>
         <nav id="channel-list" class="flex-1 p-2 space-y-0.5 overflow-y-auto"></nav>
-        <footer class="h-14 bg-gray-900 p-2 flex items-center justify-between border-t border-gray-800">
-            <button class="user-info-panel flex items-center truncate text-left hover:bg-gray-700/50 p-1.5 rounded flex-1 min-w-0"></button>
+        <footer class="h-14 bg-gray-900/80 backdrop-blur-md p-2 flex items-center justify-between border-t border-gray-900">
+            <button class="user-info-panel flex items-center truncate text-left hover:bg-gray-700/50 p-1.5 rounded-lg flex-1 min-w-0 transition-all"></button>
             <div class="flex items-center ml-1">
-                 <button class="settings-button p-2 text-gray-500 hover:text-white rounded hover:bg-gray-800 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                 <button class="settings-button p-2 text-gray-500 hover:text-white rounded-lg hover:bg-gray-800 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                  </button>
             </div>
         </footer>
@@ -161,254 +165,95 @@
       <!-- Chat Panel -->
       <div id="chat-panel" class="flex-1 flex flex-col bg-gray-700 relative">
         <div id="placeholder-view" class="flex-1 flex items-center justify-center">
-            <div class="text-center">
-                <h2 class="text-2xl font-black text-gray-500 italic uppercase">Conflict</h2>
-                <p class="mt-2 text-gray-600 text-sm">Pick a channel or friend to start.</p>
+            <div class="text-center space-y-3 opacity-20 pointer-events-none select-none">
+                <h2 class="text-6xl font-black text-white italic uppercase tracking-tighter leading-none">Conflict</h2>
+                <p class="text-gray-300 text-sm font-bold tracking-widest uppercase">Select a conversation</p>
             </div>
         </div>
         <div id="chat-view" class="hidden flex-1 flex-col overflow-hidden">
-          <header id="chat-header" class="h-12 flex items-center px-4 shadow-sm border-b border-gray-900 flex-shrink-0"></header>
+          <header id="chat-header" class="h-12 flex items-center px-4 shadow-sm border-b border-gray-900 flex-shrink-0 bg-gray-800/50 backdrop-blur-sm"></header>
           <main class="flex-1 flex overflow-hidden">
             <div class="flex-1 flex flex-col overflow-hidden">
-              <div id="message-list" class="flex-1 p-2 overflow-y-auto space-y-1"></div>
-              <div class="px-4 pb-2 flex-shrink-0">
-                <div id="command-suggestions" class="hidden mb-2 p-1.5 bg-gray-800 rounded shadow-lg max-h-40 overflow-y-auto text-xs border border-gray-700"></div>
-                <div id="file-preview-container" class="hidden items-center mb-2 p-2 bg-gray-800 rounded border border-gray-700">
-                    <svg class="w-5 h-5 text-gray-500 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>
-                    <span id="file-preview-name" class="text-xs text-gray-300 truncate flex-1 font-mono"></span>
-                    <button id="cancel-file-preview" class="ml-2 w-5 h-5 bg-gray-600 rounded-full text-white flex items-center justify-center hover:bg-red-500 transition">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              <div id="message-list" class="flex-1 p-2 overflow-y-auto space-y-0.5"></div>
+              <div class="px-4 pb-4 flex-shrink-0">
+                <div id="command-suggestions" class="hidden mb-2 p-1.5 bg-gray-800 rounded-xl shadow-2xl max-h-40 overflow-y-auto text-xs border border-gray-900 ring-1 ring-white/5"></div>
+                <div id="file-preview-container" class="hidden items-center mb-2 p-3 bg-gray-800 rounded-xl border border-gray-900 shadow-lg">
+                    <svg class="w-6 h-6 text-blue-400 mr-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span id="file-preview-name" class="text-xs text-gray-300 truncate flex-1 font-mono font-bold"></span>
+                    <button id="cancel-file-preview" class="ml-2 w-6 h-6 bg-gray-700 rounded-full text-white flex items-center justify-center hover:bg-red-500 transition active:scale-90">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
                     </button>
                 </div>
-                <form id="message-form" class="bg-gray-800 border border-gray-900 rounded flex items-center px-4 shadow-inner">
+                <form id="message-form" class="bg-gray-800 border border-gray-900 rounded-xl flex items-center px-4 shadow-2xl ring-1 ring-white/5 group focus-within:ring-blue-500/50 transition-all">
                   <input type="file" id="file-upload-input" class="hidden" accept=".txt, text/plain">
-                  <button type="button" id="attach-file-button" class="p-1.5 mr-1 text-gray-500 hover:text-white transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                  <button type="button" id="attach-file-button" class="p-2 mr-1 text-gray-500 hover:text-white transition active:scale-90">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
                   </button>
                   <div class="relative">
-                    <button type="button" id="emoji-button" class="p-1.5 text-gray-500 hover:text-white transition">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
+                    <button type="button" id="emoji-button" class="p-2 text-gray-500 hover:text-white transition active:scale-90">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                     </button>
-                    <div id="emoji-picker" class="hidden absolute bottom-full mb-3 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-2 w-64 h-56 overflow-y-auto z-10 grid grid-cols-6 gap-1"></div>
+                    <div id="emoji-picker" class="hidden absolute bottom-full mb-4 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-3 w-72 h-64 overflow-y-auto z-10 grid grid-cols-6 gap-1 ring-1 ring-white/10"></div>
                   </div>
-                  <input id="message-input" type="text" placeholder="Send a message..." class="flex-1 bg-transparent py-3 text-sm text-white placeholder-gray-500 focus:outline-none" autocomplete="off" maxlength="500" />
-                  <button type="submit" id="send-button" class="text-blue-500 hover:scale-110 disabled:text-gray-600 disabled:scale-100 transition transform">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                  <input id="message-input" type="text" placeholder="Type a message..." class="flex-1 bg-transparent py-4 text-sm text-white placeholder-gray-500 focus:outline-none" autocomplete="off" maxlength="500" />
+                  <button type="submit" id="send-button" class="text-blue-500 hover:scale-110 disabled:text-gray-700 disabled:scale-100 transition transform active:scale-90">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                   </button>
                 </form>
-                <div class="text-right text-[9px] font-black text-gray-600 pr-3 pt-1 h-4 uppercase tracking-tighter">
+                <div class="text-right text-[8px] font-black text-gray-600 pr-2 pt-1.5 h-4 uppercase tracking-tighter opacity-50">
                     <span id="char-counter">0 / 500</span>
                 </div>
               </div>
             </div>
-            <aside id="user-list-aside" class="w-56 bg-gray-800 p-2 overflow-y-auto border-l border-gray-900"></aside>
+            <aside id="user-list-aside" class="w-56 bg-gray-800/80 p-2 overflow-y-auto border-l border-gray-900 hidden lg:block"></aside>
           </main>
         </div>
         
         <!-- Video Call View -->
-        <div id="video-call-view" class="hidden absolute inset-0 bg-black z-30 flex flex-col items-center justify-center">
+        <div id="video-call-view" class="hidden absolute inset-0 bg-gray-900 z-30 flex flex-col items-center justify-center">
             <video id="remote-video" autoplay playsinline class="w-full h-full object-cover"></video>
-            <div id="video-call-status" class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-center z-40"></div>
-            <div id="local-video-container" class="absolute top-6 right-6 w-44 h-32 bg-gray-900 rounded shadow-2xl overflow-hidden border border-gray-700 z-50 cursor-move" style="display: none;">
+            <div id="video-call-status" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-xl p-4 text-center z-40"></div>
+            <div id="local-video-container" class="absolute top-6 right-6 w-56 h-40 bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-gray-700 z-50 cursor-move transition-transform active:scale-105" style="display: none;">
                 <video id="local-video" autoplay muted playsinline class="w-full h-full object-cover"></video>
             </div>
-            <div id="video-call-controls" class="absolute bottom-10 flex items-center space-x-5 p-3 px-6 bg-gray-900/80 backdrop-blur border border-gray-700 rounded-full shadow-2xl z-50" style="display: none;"></div>
+            <div id="video-call-controls" class="absolute bottom-10 flex items-center space-x-5 p-4 px-8 bg-gray-800/80 backdrop-blur-2xl border border-white/5 rounded-full shadow-2xl z-50 animate-in slide-in-from-bottom-8 duration-500" style="display: none;"></div>
         </div>
       </div>
     </div>
 
     <!-- Modals -->
-    <div id="add-server-modal" class="hidden fixed inset-0 bg-black/70 z-50 items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-700 rounded-lg p-6 w-full max-w-sm shadow-2xl border border-gray-600">
-            <h2 class="text-xl font-bold text-center text-white mb-6">Create a Server</h2>
-            <form id="add-server-form">
-                <div class="mb-6">
-                    <label class="text-[10px] font-black uppercase text-gray-400">Server Name</label>
-                    <input id="server-name-input" type="text" class="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white outline-none focus:ring-1 focus:ring-blue-500" required />
+    <div id="add-server-modal" class="hidden fixed inset-0 bg-black/60 z-50 items-center justify-center backdrop-blur-md transition-opacity">
+        <div class="bg-gray-800 rounded-2xl p-8 w-full max-w-sm shadow-2xl border border-gray-700 transform transition-all scale-95 animate-in fade-in zoom-in-95">
+            <h2 class="text-2xl font-black text-center text-white mb-8 uppercase italic tracking-tighter">Create a Server</h2>
+            <form id="add-server-form" class="space-y-8">
+                <div>
+                    <label class="text-[10px] font-black uppercase text-gray-500 tracking-widest">Server Name</label>
+                    <input id="server-name-input" type="text" placeholder="The Chill Zone" class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3.5 mt-2 text-white outline-none focus:ring-2 focus:ring-blue-500/50 transition-all" required />
                 </div>
-                <div class="flex justify-end space-x-3">
-                     <button type="button" id="cancel-add-server" class="text-gray-400 text-xs font-bold hover:text-white transition">Cancel</button>
-                     <button type="submit" class="px-5 py-2 bg-blue-500 text-gray-900 rounded font-black text-xs uppercase transition hover:opacity-90">Create</button>
+                <div class="flex items-center space-x-4 pt-2">
+                     <button type="button" id="cancel-add-server" class="flex-1 py-3 text-gray-400 text-xs font-black uppercase tracking-widest hover:text-white transition">Cancel</button>
+                     <button type="submit" class="flex-1 py-3 bg-blue-500 text-gray-900 rounded-xl font-black text-xs uppercase transition hover:brightness-110 active:scale-95 shadow-lg shadow-blue-500/20">Create</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="my-profile-modal" class="hidden fixed inset-0 bg-black/70 z-50 items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-700 rounded-lg p-6 w-full max-w-md shadow-2xl border border-gray-600">
-            <h2 class="text-xl font-bold text-white mb-6">My Profile</h2>
-            <form id="profile-form">
-                <div class="space-y-4 mb-8">
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-gray-400">Username</label>
-                        <input id="profile-username-input" type="text" class="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white outline-none focus:ring-1 focus:ring-blue-500" required />
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-gray-400">Avatar URL</label>
-                        <input id="profile-avatar-input" type="url" class="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-gray-400">Friend Code</label>
-                        <div class="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-gray-500 font-mono text-xs select-all">
-                            <span id="friend-code-display"></span>
-                        </div>
-                    </div>
+    <!-- User Profile Modal -->
+    <div id="user-profile-modal" class="hidden fixed inset-0 bg-black/60 z-50 items-center justify-center backdrop-blur-md">
+        <div class="bg-gray-800 rounded-3xl w-full max-w-xs p-1 shadow-2xl border border-white/5 overflow-hidden">
+            <div class="h-24 bg-blue-500"></div>
+            <div class="px-6 pb-8 -mt-12 text-center relative">
+                <img id="user-profile-avatar" src="" class="w-24 h-24 rounded-3xl mx-auto mb-4 border-8 border-gray-800 object-cover shadow-2xl">
+                <div class="absolute top-20 right-1/2 translate-x-12 w-6 h-6 bg-green-500 border-4 border-gray-800 rounded-full"></div>
+                <h2 id="user-profile-name" class="text-2xl font-black text-white mb-1 uppercase italic tracking-tighter"></h2>
+                <p id="user-profile-status-text" class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6">Online</p>
+                <div class="bg-gray-900/50 p-4 rounded-2xl border border-white/5 text-left mb-6 space-y-1">
+                    <label class="text-[9px] font-black uppercase text-gray-500 tracking-widest">Friend Code</label>
+                    <div id="user-profile-friend-code" class="text-xs text-blue-400 font-mono select-all truncate font-bold"></div>
                 </div>
-                <div class="flex justify-end space-x-3">
-                    <button type="button" id="close-my-profile-modal" class="text-gray-400 text-xs font-bold hover:text-white transition">Cancel</button>
-                    <button type="submit" class="px-5 py-2 bg-blue-500 text-gray-900 rounded font-black text-xs uppercase transition hover:opacity-90">Save Changes</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <div id="settings-modal" class="hidden fixed inset-0 bg-black/70 z-50 items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-3xl h-[500px] flex overflow-hidden shadow-2xl border border-gray-700">
-            <nav class="w-48 bg-gray-900 p-4 space-y-1 border-r border-gray-700">
-                <h3 class="px-2 text-[10px] font-black uppercase text-gray-500 mb-2">User Settings</h3>
-                <button data-section="theme-section" class="settings-nav-button w-full text-left px-3 py-1.5 rounded text-xs font-bold text-white bg-gray-700 transition">Appearance</button>
-                <div class="border-t border-gray-800 my-2 mx-2"></div>
-                <button class="signout-button w-full text-left px-3 py-1.5 rounded text-xs font-bold text-red-400 hover:bg-red-500 hover:text-white transition">Sign Out</button>
-            </nav>
-            <div class="flex-1 flex flex-col bg-gray-800">
-                <main class="flex-1 p-8 overflow-y-auto">
-                    <div id="theme-section" class="settings-section">
-                         <h2 class="text-xl font-bold text-white mb-6">Appearance</h2>
-                         <p class="text-xs text-gray-400 mb-8">Customize your Conflict experience.</p>
-                         <div class="space-y-6">
-                             <div class="flex items-center justify-between">
-                                 <label class="text-sm font-bold text-gray-300">Background Color</label>
-                                 <input type="color" id="custom-bg-color" value="#21262D" class="bg-transparent border-none w-8 h-8 rounded-full overflow-hidden cursor-pointer">
-                             </div>
-                             <div class="flex items-center justify-between">
-                                 <label class="text-sm font-bold text-gray-300">Text Color</label>
-                                 <input type="color" id="custom-text-color" value="#C9D1D9" class="bg-transparent border-none w-8 h-8 rounded-full overflow-hidden cursor-pointer">
-                             </div>
-                             <div class="flex items-center justify-between">
-                                 <label class="text-sm font-bold text-gray-300">Accent Color</label>
-                                 <input type="color" id="custom-accent-color" value="#39D3BB" class="bg-transparent border-none w-8 h-8 rounded-full overflow-hidden cursor-pointer">
-                             </div>
-                         </div>
-                    </div>
-                </main>
-                <footer class="p-4 flex justify-end bg-gray-900/50">
-                    <button id="close-settings-modal" class="text-xs font-black uppercase text-gray-500 hover:text-white transition px-4 py-2">Close</button>
-                </footer>
+                <div id="user-profile-actions" class="space-y-2 mb-4"></div>
+                <button id="close-user-profile-modal" class="w-full py-3 bg-gray-700/50 text-gray-300 font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-gray-700 transition active:scale-95">Close</button>
             </div>
-        </div>
-    </div>
-
-    <div id="server-settings-modal" class="hidden fixed inset-0 bg-black/70 z-50 items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-lg w-full max-w-4xl h-[560px] flex overflow-hidden shadow-2xl border border-gray-700">
-            <nav class="w-56 bg-gray-900 p-4 space-y-1 border-r border-gray-700">
-                <h3 id="settings-server-name" class="px-2 mb-3 font-black text-white text-xs uppercase tracking-tight truncate">Server Settings</h3>
-                <button data-section="overview-section" class="server-settings-nav-button w-full text-left px-3 py-1.5 rounded text-xs font-bold text-white bg-gray-700 transition">Overview</button>
-                <button data-section="channels-section" class="server-settings-nav-button w-full text-left px-3 py-1.5 rounded text-xs font-bold text-gray-400 hover:bg-gray-700 hover:text-white transition">Channels</button>
-                <div class="border-t border-gray-800 my-2 mx-2"></div>
-                <h3 class="px-2 text-[10px] font-black uppercase text-gray-500 mb-1">User Management</h3>
-                <button data-section="roles-section" class="server-settings-nav-button w-full text-left px-3 py-1.5 rounded text-xs font-bold text-gray-400 hover:bg-gray-700 hover:text-white transition">Roles</button>
-                <button data-section="members-section" class="server-settings-nav-button w-full text-left px-3 py-1.5 rounded text-xs font-bold text-gray-400 hover:bg-gray-700 hover:text-white transition">Members</button>
-            </nav>
-            <div class="flex-1 flex flex-col bg-gray-800">
-                <main class="flex-1 p-8 overflow-y-auto">
-                    <div id="overview-section" class="server-settings-section">
-                         <h2 class="text-xl font-bold text-white mb-6">Server Overview</h2>
-                         <form id="server-overview-form" class="space-y-6">
-                            <div class="flex items-center space-x-6">
-                                <img id="server-settings-icon-preview" src="" class="w-20 h-20 rounded-xl object-cover bg-gray-900 border border-gray-700">
-                                <div class="flex-1">
-                                    <label class="text-[10px] font-black uppercase text-gray-400">Server Icon URL</label>
-                                    <input id="server-settings-icon-url" type="url" class="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white outline-none focus:ring-1 focus:ring-blue-500" placeholder="https://...">
-                                </div>
-                            </div>
-                             <div>
-                                <label class="text-[10px] font-black uppercase text-gray-400">Server Name</label>
-                                <input id="server-settings-name-input" type="text" class="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white outline-none focus:ring-1 focus:ring-blue-500" required />
-                             </div>
-                             <div class="flex items-center">
-                                <button type="submit" class="px-5 py-2 bg-blue-500 text-gray-900 rounded font-black text-xs uppercase transition hover:opacity-90">Save Changes</button>
-                                <span id="server-settings-status" class="ml-4 text-xs font-bold text-green-400"></span>
-                             </div>
-                         </form>
-                    </div>
-                    <div id="channels-section" class="server-settings-section hidden">
-                        <h2 class="text-xl font-bold text-white mb-4">Channels</h2>
-                        <div id="editable-channels-list" class="space-y-2"></div>
-                    </div>
-                    <div id="roles-section" class="server-settings-section hidden">
-                         <h2 class="text-xl font-bold text-white mb-6">Roles</h2>
-                         <div class="bg-gray-900 p-4 rounded-lg border border-gray-700">
-                            <div id="roles-list" class="space-y-2 mb-6"></div>
-                            <form id="create-role-form" class="space-y-4">
-                                <h3 class="text-[10px] font-black uppercase text-gray-500">Create Role</h3>
-                                <div class="flex items-center space-x-3">
-                                    <input id="role-name-input" type="text" placeholder="Role Name" class="flex-1 bg-gray-800 border border-gray-700 rounded p-2 text-white outline-none focus:ring-1 focus:ring-blue-500">
-                                    <input id="role-color-input" type="color" value="#8B949E" class="w-8 h-8 rounded cursor-pointer border-none bg-transparent">
-                                    <button type="submit" class="px-4 py-2 bg-blue-500 text-gray-900 rounded font-black text-xs uppercase">Add</button>
-                                </div>
-                                <label class="flex items-center text-xs text-gray-400 font-bold cursor-pointer">
-                                    <input type="checkbox" id="role-moderator-toggle" class="mr-2 rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-0">
-                                    Moderator Permissions
-                                </label>
-                            </form>
-                         </div>
-                    </div>
-                    <div id="members-section" class="server-settings-section hidden">
-                        <h2 class="text-xl font-bold text-white mb-6">Members</h2>
-                        <div id="server-members-list" class="space-y-1"></div>
-                    </div>
-                </main>
-                <footer class="p-4 flex justify-end bg-gray-900/50">
-                    <button id="close-server-settings-modal" class="text-xs font-black uppercase text-gray-500 hover:text-white transition px-4 py-2">Close</button>
-                </footer>
-            </div>
-        </div>
-    </div>
-
-    <div id="create-channel-modal" class="hidden fixed inset-0 bg-black/70 z-50 items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-700 rounded-lg p-6 w-full max-w-sm shadow-2xl border border-gray-600">
-            <h2 class="text-xl font-bold text-center text-white mb-6">New Channel</h2>
-            <form id="create-channel-form">
-                <div class="mb-6">
-                    <label class="text-[10px] font-black uppercase text-gray-400">Channel Name</label>
-                    <input id="channel-name-input" type="text" placeholder="general" class="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white outline-none focus:ring-1 focus:ring-blue-500" required />
-                </div>
-                <div class="flex justify-end space-x-3">
-                     <button type="button" id="cancel-create-channel" class="text-gray-400 text-xs font-bold hover:text-white transition">Cancel</button>
-                     <button type="submit" class="px-5 py-2 bg-blue-500 text-gray-900 rounded font-black text-xs uppercase transition hover:opacity-90">Create</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="invite-modal" class="hidden fixed inset-0 bg-black/70 z-50 items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-700 rounded-lg p-6 w-full max-w-sm shadow-2xl border border-gray-600">
-            <h2 class="text-xl font-bold text-center text-white mb-1">Invite to</h2>
-            <p id="invite-server-name" class="text-center text-xs font-bold text-blue-400 mb-6 truncate uppercase tracking-widest"></p>
-            <form id="invite-form">
-                <div class="mb-6">
-                    <label class="text-[10px] font-black uppercase text-gray-400">Friend Code (User ID)</label>
-                    <input id="friend-code-input" type="text" class="w-full bg-gray-900 border border-gray-600 rounded p-2 mt-1 text-white outline-none focus:ring-1 focus:ring-blue-500" required />
-                    <p id="invite-status-message" class="text-[10px] mt-2 h-4 font-bold"></p>
-                </div>
-                <div class="flex justify-end space-x-3">
-                     <button type="button" id="cancel-invite-button" class="text-gray-400 text-xs font-bold hover:text-white transition">Cancel</button>
-                     <button type="submit" class="px-5 py-2 bg-blue-500 text-gray-900 rounded font-black text-xs uppercase transition hover:opacity-90">Send Invite</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <div id="user-profile-modal" class="hidden fixed inset-0 bg-black/70 z-50 items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-xl w-full max-w-sm p-8 shadow-2xl border border-gray-700 text-center">
-            <img id="user-profile-avatar" src="" class="w-24 h-24 rounded-2xl mx-auto mb-4 border-4 border-gray-900 object-cover shadow-2xl">
-            <h2 id="user-profile-name" class="text-2xl font-black text-white mb-6 uppercase italic tracking-tighter"></h2>
-            <div class="bg-gray-900 p-4 rounded border border-gray-700 text-left mb-6">
-                <label class="text-[9px] font-black uppercase text-gray-500">Friend Code</label>
-                <div id="user-profile-friend-code" class="mt-1 text-xs text-blue-400 font-mono select-all truncate"></div>
-            </div>
-            <div id="user-profile-actions" class="mb-4"></div>
-            <button id="close-user-profile-modal" class="w-full py-2 bg-gray-700 text-white font-bold text-xs uppercase rounded hover:bg-gray-600 transition">Close</button>
         </div>
     </div>
 
