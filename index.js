@@ -60,31 +60,31 @@ const EMOJIS = [
 '👕', '👖', '🧥', '👔', '👗', '👙', '👚', '👘', '🥻', '🩱', '🩲', '🩳', '👠', '👡', '👢', '🥿',
 '👞', '👟', '🩴', '🧦', '🧤', '🧣', '🎩', '🧢', '👒', '🎓', '⛑️', '🪖', '👑', '💍', '💎', '🔔',
 '📿', '💄', '💼', '👜', '👝', '👛', '🛍️', '🎒', '🩸', '🩹', '🩺', '🩻', '🪣', '🧴', '🧷', '🧹',
-'🧺', '🧻', '🚽', '🚿', '🛁', '🪥', '🪒', '🪞', '🪟', '🪑', '🛋️', '🛏️', '🛌', '🪟', '🚪', '🪜',
+'🧺', '🧻', '🚽', '🚿', '🛁', '🪥', '🪒', '🪞', '🪟', '🪑', '🛋️', '🛏️', '🛌', '🪟', 'ドア', '🪜',
 '🖼️', '🧸', '🪆', '🪅', '🎁', '🎈', '🎉', '🎊', '🎂', '🍰', '🧁', '🥧', '🍩', '🍪', '🍫', '🍬',
 '🍭', '🍮', '🍯', '☕', '🍵', '🥛', '🧃', '🧉', '🍺', '🍻', '🍷', '🥂', '🥃', '🍸', '🍹', '🍾',
 '🍽️', '🍴', '🥄', '🔪', '🏺', '🌍', '🌎', '🌏', '🌕', '🌙', '⭐', '🌟', '⚡', '🔥', '💧', '🌈',
 '☁️', '🌤️', '⛈️', '🌧️', '❄️', '☃️', '🌬️', '🌪️', '🌊', '🌋', '🌻', '🌹', '🌷', '🌼', '🌸', '💐',
-'🍀', '🌴', '🌲', '🌳', '🌵', '🍁', '🍂', '🍃', '🪴', '🍄', '🐚', '🪸', '🐾', '🦋', '🐝', '🐞',
-'🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓',
-'🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑',
-'🐐', '🦌', '🐕', '🐩', '🐈', '🐓', '🦃', '🦚', '🕊️', '🐇', '🐁', '🐀', '🐿️', '🦔', '🐉', '🐲',
-'🌵', '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🥭', '🍎', '🍏', '🍐', '🍑', '🍒', '🍓', '🫐',
-'🥝', '🍅', '🫒', '🥥', '🥑', '🍆', '🥔', '🥕', '🌽', '🥒', '🥬', '🥦', '🧄', '🧅', '🍄', '🥜',
-'🌰', '🍞', '🥐', '🥖', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩', '🥓', '🍔', '🍟', '🍕',
-'🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🥘', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🍤', '🍢',
-'🍡', '🍧', '🍨', '🍦', '🍰', '🎂', '🍮', '🍯', '🍶', '🍵', '🥤', '🧋', '🧊', '🍾', '🍷', '🍺',
-'⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🥏', '🎱', '🏓', '🏸', '🥅', '🏒', '🏑', '🥍', '🏹',
-'🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛷️', '🏂', '🏋️', '🤸', '⛹️', '🏌️', '🏇', '🏄',
-'🚣', '🏊', '🤽', '🚴', '🚵', '🧗', '🪂', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🎗️', '🏵️', '🎫',
-'🎟️', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🎻', '🪕', '🎮', '🕹️',
-'🎰', '🎲', '🧩', '♟️', '🎯', '🎳', '🪀', '🪁', '🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑',
-'🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🦽', '🦼', '🛴', '🚲', '🛵', '🏍️', '🛺', '🚨', '🚔', '🚍',
-'🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚝', '🚄', '🚅', '🚈', '🚞', '🚆', '🚇', '🚊', '🚉',
-'🛫', '🛬', '🛩️', '🛰️', '🚀', '🛸', '🚁', '⚓', '🛳️', '⛴️', '🚢', '🛶', '⛵', '🚤', '🪝', '🪵',
-'🏠', '🏡', '🏘️', '🏢', '🏣', '🏤', '🏥', '🏦', '🏨', '🏪', '🏫', '🏬', '🏛️', '⛪', '🕌', '🛕',
-'🕍', '⛩️', '🕋', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛺', '🌁', '🌉', '🌆', '🌇',
-'🌃', '🌌', '🌠', '🎇', '🎆', '🌅', '🌄', '🏞️', '🌲', '🌳', '🏜️', '🏝️', '🏖️', '🏕️', '🪨', '🪵'
+'🍀', '🌴', '🌲', '🌳', '🌵', '🍁', '🍂', '🍃', '🪴', '🍄', 'シェル', '🪸', '🐾', '🦋', '🐝', '🐞',
+'🐢', 'スネーク', 'トカゲ', '🦖', '🦕', '🐙', '🐠', '魚', '🐬', 'くじら', '🐋', '🦈', 'ワニ', 'トラ', 'ヒョウ', 'ゼブラ',
+'ゴリラ', 'オラウータン', 'ゾウ', 'カバ', 'サイ', 'ラクダ', 'ヒトコブラクダ', 'キリン', 'カンガルー', 'スイギュウ', '雄牛', '牛', '馬', '豚', '羊', '雌羊',
+'ヤギ', '鹿', '犬', 'プードル', '猫', 'おんどり', '七面鳥', 'クジャク', 'ハト', 'ウサギ', 'ハツカネズミ', 'ネズミ', 'リス', 'ハリネズミ', 'ドラゴン', '龍',
+'サボテン', 'ブドウ', 'メロン', 'スイカ', 'オレンジ', 'レモン', 'バナナ', 'パイナップル', 'マンゴー', 'リンゴ', '青りんご', '洋ナシ', '桃', 'さくらんぼ', 'いちご', 'ブルーベリー',
+'キウイ', 'トマト', 'オリーブ', 'ココナッツ', 'アボカド', 'なす', 'じゃがいも', '人参', 'トウモロコシ', 'きゅうり', 'レタス', 'ブロッコリー', 'にんにく', '玉ねぎ', 'きのこ', 'ピーナッツ',
+'栗', '食パン', 'クロワッサン', 'バゲット', 'プレッツェル', 'ベーグル', 'パンケーキ', 'ワッフル', 'チーズ', '肉', '骨付き肉', 'ステーキ', 'ベーコン', 'ハンバーガー', 'ポテト', 'ピザ',
+'ホットドッグ', 'サンドイッチ', 'タコス', 'ブリトー', 'ケバブ', 'ファラフェル', 'パエリア', 'パスタ', 'ラーメン', 'なべ', 'カレー', '寿司', 'お弁当', '餃子', 'エビフライ', 'おでん',
+'団子', 'かき氷', 'アイスクリーム', 'ソフトクリーム', 'ケーキ', 'バースデーケーキ', 'プリン', 'ハチミツ', 'お酒', 'お茶', 'コップ', 'タピオカ', '氷', 'シャンパン', 'ワイン', 'ビール',
+'サッカー', 'バスケ', 'アメフト', '野球', 'テニス', 'バレー', 'ラグビー', 'フリスビー', 'ビリヤード', 'ピンポン', 'バドミントン', 'ゴール', 'ホッケー', 'フィールドホッケー', 'ラクロス', '弓',
+'釣り', 'ダイビング', 'ボクシング', 'カラテ', 'ユニフォーム', 'スケボー', 'ローラースケート', 'そり', 'スキー', 'スノボー', 'ウェイト', '体操', 'バスケ', 'ゴルフ', '乗馬', 'サーフィン',
+'ボート', 'スイミング', '水球', '自転車', 'マウンテンバイク', 'クライミング', 'パラシュート', 'トロフィー', '金メダル', '銀メダル', '銅メダル', '勲章', '軍章', 'リボン', 'ロゼット', 'チケット',
+'入場券', '演劇', 'パレット', 'カチンコ', 'マイク', 'ヘッドホン', '楽譜', 'ピアノ', 'ドラム', 'サックス', 'トランペット', 'ギター', 'バイオリン', 'バンジョー', 'ゲーム', 'ジョイスティック',
+'スロット', 'ダイス', 'パズル', 'チェス', 'ダーツ', 'ボウリング', 'ヨーヨー', '凧', '車', 'タクシー', '青い車', 'バス', 'トロリー', 'レースカー', 'パトカー', '救急車',
+'消防車', 'バン', 'トラック', '大型トラック', 'トラクター', '車椅子', '電動車椅子', 'スクーター', '自転車', 'バイク', 'モーターサイクル', 'オートリキシャ', 'パトライト', '正面パトカー', '正面バス',
+'正面車', '正面タクシー', 'ロープウェイ', 'ケーブルカー', '吊り車', '客車', '路面電車', 'モノレール', '高速鉄道', '新幹線', 'ライトレール', '山岳鉄道', '電車', '地下鉄', '路面電車駅', '駅',
+'離陸', '着陸', '飛行機', '衛星', 'ロケット', 'UFO', 'ヘリ', 'いかり', '客船', 'フェリー', '船', 'カヌー', '帆船', 'スピードボート', 'フック', '丸太',
+'家', '庭付き家', '家並み', 'オフィス', '郵便局', '分館郵便局', '病院', '銀行', 'ホテル', 'コンビニ', '学校', 'デパート', '神殿', '教会', 'モスク', 'ヒンドゥー教寺院',
+'シナゴーグ', '鳥居', 'カアバ', '自由の女神', '東京タワー', '城', '日本城', 'スタジアム', '観覧車', 'ジェットコースター', 'メリーゴーランド', '噴水', 'テント', '霧', '橋', '都会', '夕焼け',
+'夜の都会', '銀河', '流星', '線香花火', '花火', '日の出', '山の日の出', '国立公園', '杉', '広葉樹', '砂漠', '無人島', 'ビーチ', 'キャンプ', '石', '丸太'
 
 ];
 
@@ -331,14 +331,14 @@ const adminPanelHTML = `
 </html>
 `;
 
-const MIC_ON_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>`;
-const MIC_OFF_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.08V5c0-1.657 1.343-3 3-3s3 1.343 3 3v.08m-6 0c0 1.657-1.343 3-3 3s-3-1.343-3-3v0m-1 8.917c1.333.604 2.89.917 4.5.917 1.61 0 3.167-.313 4.5-.917m-9 0v-1c0-2.21 1.79-4 4-4s4 1.79 4 4v1m-6 .08h.08a4.992 4.992 0 01-4.16 0H6"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18"></path></svg>`;
-const CAM_ON_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`;
-const CAM_OFF_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18"></path></svg>`;
-const HANGUP_SVG = `<svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.218,2.282a1.042,1.042,0,0,0-1.474,0l-1.7,1.7-2.31-2.31a3.03,3.03,0,0,0-4.286,0L2.282,6.839a3.03,3.03,0,0,0,0,4.286l3.3,3.3-2.24,2.24a1.042,1.042,0,0,0,0,1.474l3.78,3.78a1.042,1.042,0,0,0,1.474,0l2.24-2.24,3.3,3.3a3.03,3.03,0,0,0,4.286,0l4.834-4.834a3.03,3.03,0,0,0,0-4.286L17.218,2.282Z"></path></svg>`;
-const SCREEN_SHARE_ON_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>`;
-const COLLAPSE_SVG = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path></svg><span class="absolute right-full top-1/2 -translate-y-1/2 mr-2 p-2 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Collapse</span>`;
-const EXPAND_SVG = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg><span class="absolute left-full top-1/2 -translate-y-1/2 ml-2 p-2 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Expand</span>`;
+const MIC_ON_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>`;
+const MIC_OFF_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V5a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>`;
+const CAM_ON_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8z"/><rect x="2" y="6" width="14" height="12" rx="2" ry="2"/></svg>`;
+const CAM_OFF_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m16 16 6 4V4l-6 4M7 21a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v12M1 1l22 22"/></svg>`;
+const HANGUP_SVG = `<svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6.13-6.13A19.79 19.79 0 0 1 2.06 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+const SCREEN_SHARE_ON_SVG = `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
+const COLLAPSE_SVG = `<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg><span class="absolute right-full top-1/2 -translate-y-1/2 mr-2 p-2 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Collapse</span>`;
+const EXPAND_SVG = `<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg><span class="absolute left-full top-1/2 -translate-y-1/2 ml-2 p-2 text-xs bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Expand</span>`;
 
 
 // =================================================================================
@@ -664,7 +664,7 @@ const renderServers = (servers) => {
     homeButton.innerHTML = `
       <div class="absolute left-0 h-0 w-1 bg-white rounded-r-full transition-all duration-200 ${isHomeActive ? 'h-10' : 'group-hover:h-5'}"></div>
       <button class="flex items-center justify-center w-12 h-12 rounded-3xl transition-all duration-200 group-hover:rounded-2xl ${isHomeActive ? 'bg-blue-500 rounded-2xl' : 'bg-gray-700 hover:bg-blue-500'} focus:outline-none">
-        <svg class="w-7 h-7 text-gray-200" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+        <svg class="w-7 h-7 text-gray-200" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       </button>
       <span class="absolute left-16 p-2 text-sm bg-gray-900 text-white rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 pointer-events-none">Home</span>
     `;
@@ -702,7 +702,7 @@ const renderServers = (servers) => {
     addServerButton.innerHTML = `
       <div class="w-full border-t border-gray-700 my-2"></div>
       <button class="flex items-center justify-center w-12 h-12 bg-gray-700 rounded-3xl hover:bg-green-500 hover:rounded-2xl transition-all duration-200 group focus:outline-none">
-        <svg class="w-6 h-6 text-green-500 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+        <svg class="w-6 h-6 text-green-500 group-hover:text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
     `;
     addServerButton.querySelector('button').onclick = () => {
@@ -725,7 +725,7 @@ const renderChannels = (server, channels) => {
             <h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Text Channels</h2>
             ${hasModPerms ? `
             <button id="add-channel-button" class="text-gray-400 hover:text-white">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>` : ''}
         </div>
     `;
@@ -744,7 +744,7 @@ const renderChannels = (server, channels) => {
         channelLink.className = `relative flex items-center w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isActive ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
         channelLink.innerHTML = `
             ${isUnread ? '<div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-2 bg-white rounded-r-full"></div>' : ''}
-            <svg class="w-5 h-5 mr-2 text-gray-500" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
+            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
             <span class="font-medium truncate">${channel.name}</span>
         `;
         channelLink.onclick = () => selectChannel(channel.id);
@@ -783,7 +783,7 @@ const renderFriends = (friends) => {
                 <span class="font-medium truncate" data-userid="${friend.id}">${friend.displayName}</span>
             </div>
             <button class="remove-friend-btn opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 p-1 rounded-full focus:outline-none z-10" title="Remove Friend">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
         `;
         friendList.appendChild(friendEl);
@@ -883,7 +883,7 @@ const renderMessages = (messages) => {
                 <span class="text-xs text-gray-500 ml-auto pl-4 opacity-0 group-hover:opacity-100 transition-opacity">${timestamp}</span>
                 ${msg.user.uid === currentUser.uid ? `
                 <button class="delete-message-btn ml-2 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100" data-message-id="${msg.id}" title="Delete Message">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                 </button>
                 ` : ''}
             `;
@@ -897,7 +897,7 @@ const renderMessages = (messages) => {
                 ${msg.user.uid === currentUser.uid ? `
                 <div class="absolute top-4 right-4 bg-gray-800 rounded border border-gray-600 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
                     <button class="delete-message-btn p-1 text-gray-400 hover:text-red-400" data-message-id="${msg.id}" title="Delete Message">
-                       <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                       <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                     </button>
                 </div>
                 ` : ''}
@@ -974,7 +974,7 @@ const renderRoles = () => {
 
         roleEl.innerHTML = `
             <div class="flex items-center pointer-events-none">
-                 <svg class="w-5 h-5 mr-3 ${isOwnerRole ? 'text-gray-600' : 'text-gray-400 cursor-grab'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                 <svg class="w-5 h-5 mr-3 ${isOwnerRole ? 'text-gray-600' : 'text-gray-400 cursor-grab'}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
                 <div class="w-4 h-4 rounded-full mr-3" style="background-color: ${role.color};"></div>
                 <span class="font-semibold text-white">${role.name}</span>
             </div>
@@ -998,7 +998,7 @@ const renderEditableChannels = async () => {
         channelEl.className = 'flex items-center justify-between p-2 rounded-md bg-gray-800';
         channelEl.innerHTML = `
             <div class="flex items-center">
-                <svg class="w-5 h-5 mr-2 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
+                <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
                 <input type="text" value="${channel.name}" data-channel-id="${channel.id}" class="channel-rename-input flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none rounded-md p-1 focus:bg-gray-900" />
             </div>
             <span class="text-xs text-green-400 opacity-0 transition-opacity" id="status-${channel.id}">Saved!</span>
@@ -1041,7 +1041,7 @@ const renderServerMembers = () => {
                 <div class="flex items-center">
                     <img src="${userAvatarUrl}" alt="${displayName}" class="w-8 h-8 rounded-full object-cover mr-3">
                     <span class="font-medium text-white">${displayName}</span>
-                    ${isOwner ? '<svg class="w-4 h-4 text-yellow-400 ml-2" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>' : ''}
+                    ${isOwner ? '<svg class="w-4 h-4 text-yellow-400 ml-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7z"/></svg>' : ''}
                 </div>
             </div>
             <div class="pl-11 pt-2 space-y-1">
@@ -1077,10 +1077,10 @@ const renderInvitations = (invites) => {
                     <span class="font-medium text-white">${escapeHTML(invite.fromName)}</span>
                     <div>
                         <button class="accept-invite-btn w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center mr-1" data-invite-id="${invite.id}" aria-label="Accept">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
                         </button>
                         <button class="decline-invite-btn w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center" data-invite-id="${invite.id}" aria-label="Decline">
-                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
                     </div>
                 </div>`;
@@ -1102,10 +1102,10 @@ const renderInvitations = (invites) => {
                     </div>
                     <div>
                         <button class="accept-invite-btn w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center mr-1" data-invite-id="${invite.id}" aria-label="Accept">
-                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
                         </button>
                         <button class="decline-invite-btn w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center" data-invite-id="${invite.id}" aria-label="Decline">
-                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
                     </div>
                 </div>`;
@@ -1421,7 +1421,7 @@ const selectChannel = (channelId) => {
         if (doc.exists) {
             const channelData = doc.data();
             if(chatHeader) chatHeader.innerHTML = `
-            <svg class="w-6 h-6 text-gray-500 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M10 9h4V7h-4v2zm-2 4h4v-2H8v2zm10-4v2h-4V9h4zm2-2h-4V5h4v2zm-4 8h4v-2h-4v2zm-2-4h-4v2h4v-2zm-2 4h2v2h-2v-2zm-6-4H4v2h2v-2zM6 7H4v2h2V7zm10 10v-2h-4v2h4zm-6 0v-2H8v2h2z"></path></svg>
+            <svg class="w-6 h-6 text-gray-500 mr-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
             <h2 class="font-semibold text-lg text-white">${channelData.name}</h2>
             `;
             if(messageInput) messageInput.placeholder = `Message #${channelData.name}`;
@@ -1466,7 +1466,7 @@ const selectDmChannel = async (friend) => {
                 <h2 class="font-semibold text-lg text-white">${friend.displayName}</h2>
             </div>
             <button id="start-call-button" class="ml-auto text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-600">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2-2H4a2 2 0 01-2-2V6zM14.553 5.106A1 1 0 0116 6v8a1 1 0 01-1.447.894L12 12.828V7.172l2.553-1.932z"></path></svg>
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8z"/><rect x="2" y="6" width="14" height="12" rx="2" ry="2"/></svg>
             </button>
         `;
         document.getElementById('start-call-button').onclick = () => startCall(friend);
