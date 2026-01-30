@@ -1,3 +1,4 @@
+
 // Since we are using the compat libraries loaded via script tags in index.html,
 // the firebase object is available globally.
 
@@ -28,14 +29,50 @@ const provider = new firebase.auth.GoogleAuthProvider();
 // Constants
 // =================================================================================
 const DEFAULT_AVATAR_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%2372767d'/%3E%3C/svg%3E";
+
 const FAKE_ADS = [
-    { title: 'Conflict Nitro', body: 'Supercharge your chat experience with custom emojis and more!', link: 'nitro.html' },
-    { title: 'Gamer GeaR', body: 'Get the latest hardware to dominate the competition.', link: 'gamer.html' },
-    { title: 'Server Boosts', body: 'Level up your server with powerful perks.', link: 'components/boosts.html' },
-    { title: 'Learn to Code', body: 'Join our bootcamp and become a master developer in weeks!', link: 'learncode.html' },
-    { title: 'Buy Crypto!', body: 'To the moon! Invest in the future of finance today.', link: 'crypto.html' },
-    { title: 'Singles In Your Area', body: 'Tired of being alone? Meet other gamers near you now!', link: 'singles.html' },
+    // School Projects
+    { title: 'Latin Dictionary WIP', body: 'Latin dictionary for all your latin dictionary needs!', link: 'https://gantyfonta.github.io/LD/' },
+    { title: 'Significant Figures Calculator', body: 'Do math with rounding and automatic SF handling.', link: 'https://gantyfonta.github.io/SigFigCalc/' },
+    { title: 'Latin AI', body: 'Ask for help to an AI chatbot.', link: 'https://latinusmagister.base44.app/' },
+    { title: 'Outlet', body: 'Paste in flashcards or vocab words and study them.', link: 'https://gantyfonta.github.io/Outlet/' },
+    { title: 'Things From Grammer', body: 'I misspelled Grammar to ragbait tesco.', link: 'https://gantyfonta.github.io/Grammar/' },
+    { title: 'Graphing Calculator', body: 'Works with most graphs.', link: 'https://gantyfonta.github.io/gcalc/' },
+    // Random Games
+    { title: 'Redstone Simulator', body: '2D Minecraft redstone simulation featuring many redstone components.', link: 'https://gantyfonta.github.io/redstone/' },
+    { title: 'Polytrack', body: 'Play a drive game made by Kodub.', link: 'https://gantyfonta.github.io/polytrack/' },
+    { title: 'Shapemon', body: 'A Pokemon battle style game, but with shapes.', link: 'https://gantyfonta.github.io/Shapemon/' },
+    { title: 'Emulator', body: 'Play several games from older consoles.', link: 'https://gantyfonta.github.io/wdbgub/emulator/index.html' },
+    { title: 'Numberle', body: 'Play higher or lower in a wordle-ish number guessing game.', link: 'https://gantyfonta.github.io/Numberle/' },
+    { title: 'Caesar\'s Spelling Bee', body: 'Spell out the spoken latin words.', link: 'https://gantyfonta.github.io/SpellingBee/' },
+    { title: 'Chess', body: 'Play chess against someone online.', link: 'https://gantyfonta.github.io/chess/' },
+    { title: 'Stonks', body: 'Pretend you have stocks in an always changing stonks game.', link: 'https://gantyfonta.github.io/Stonks/' },
+    { title: 'Forge of Legends', body: 'Make cool weapons, fight stuff. (Zoom out to see full weapons)', link: 'https://forge-of-legends-7e55fd62.base44.app/Forge' },
+    { title: 'Gambling', body: 'Two words: Slot Machine.', link: 'https://gantyfonta.github.io/Gambling/' },
+    { title: 'The Maze', body: 'Run from a minotaur in a maze.', link: 'https://gantyfonta.github.io/TheMaze/' },
+    { title: 'RNG', body: 'A poorly made RNG game.', link: 'https://gantyfonta.github.io/Rng/' },
+    { title: 'Poker', body: 'Classic poker.', link: 'https://gantyfonta.github.io/Poker/' },
+    { title: 'Blackjack', body: 'Reach 21 to win.', link: 'https://gantyfonta.github.io/Blackjack/' },
+    { title: 'Russian Roulette', body: 'Simple (bad) Russian Roulette.', link: 'https://gantyfonta.github.io/RussianRoulette/' },
+    { title: 'Culinary Craft', body: 'Jesse, we need to cook.', link: 'https://culinary-craft-07cb0bc3.base44.app/' },
+    { title: 'Chalkboard', body: 'Draw on a chalkboard with people.', link: 'https://gantyfonta.github.io/chalkboard/' },
+    { title: 'Multiplayer Checkboxes', body: 'Click checkboxes and see them on other peoples screens.', link: 'https://gantyfonta.github.io/checkboxes/' },
+    { title: 'Lightbulb', body: 'To turn on or off lightbulbs.', link: 'https://gantyfonta.github.io/Lightbulb/' },
+    // Misc Projects
+    { title: 'Conflict', body: 'A simple messaging app that looks familiar.', link: 'https://gantyfonta.github.io/conflict/' },
+    { title: 'Conflict Rooms', body: 'A room based meeting site that works like Zoom and looks like Conflict.', link: 'https://gantyfonta.github.io/conflict-chat/' },
+    { title: 'Hand Physics Lab', body: 'A hand and face tracking simulation in 3D.', link: 'https://gantyfonta.github.io/HandPhysicsLab/' },
+    { title: 'Grak the AI Caveman (newest)', body: 'Chat with Grak, a caveman AI.', link: 'https://preview--aura-chat-copy-255598c1.base44.app/Chat?hide_badge=true' },
+    { title: 'Synthesizer', body: 'Make music.', link: 'https://gantyfonta.github.io/synthesizer/' },
+    { title: 'Robert the AI', body: 'Talk to the ultimate codemaking British AI.', link: 'https://app--code-crafter-ai-25f0c1f1.base44.app' },
+    { title: 'GantyMail', body: 'Another email(chat) system to talk to people.', link: 'https://gantyfonta.github.io/gantymail/' },
+    { title: 'Blurp', body: 'Create an account, add people and talk to them.', link: 'https://gantyfonta.github.io/blurp/' },
+    { title: 'MultiCode Runner', body: 'Run most other websites / code inside of it.', link: 'https://gantyfonta.github.io/Multicoderunner/' },
+    { title: 'Grak 2.0', body: 'Grak, but obsessed with space. Robert’s first appearance.', link: 'https://gantyfonta.github.io/grak2.0/' },
+    { title: 'Grak (oldest)', body: 'The oldest primordial Grak.', link: 'https://gantyfonta.github.io/grak/' },
+    { title: 'This Website', body: 'A link to the current website you are on.', link: 'https://gantyfonta.github.io/Randomsideprojects/' },
 ];
+
 const COMMANDS = [
     { command: '/poll', params: '"Question" "Option 1"...', description: 'Create a poll.' },
     { command: '/shrug', params: '', description: '¯\\_(ツ)_/¯' },
@@ -85,7 +122,6 @@ const EMOJIS = [
 '家', '庭付き家', '家並み', 'オフィス', '郵便局', '分館郵便局', '病院', '銀行', 'ホテル', 'コンビニ', '学校', 'デパート', '神殿', '教会', 'モスク', 'ヒンドゥー教寺院',
 'シナゴーグ', '鳥居', 'カアバ', '自由の女神', '東京タワー', '城', '日本城', 'スタジアム', '観覧車', 'ジェットコースター', 'メリーゴーランド', '噴水', 'テント', '霧', '橋', '都会', '夕焼け',
 '夜の都会', '銀河', '流星', '線香花火', '花火', '日の出', '山の日の出', '国立公園', '杉', '広葉樹', '砂漠', '無人島', 'ビーチ', 'キャンプ', '石', '丸太'
-
 ];
 
 const tetrisHTML = `
