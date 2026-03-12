@@ -82,6 +82,7 @@ const COMMANDS = [
     { command: '/ban', params: '<user_id>', description: 'Ban a user from the server.', restricted: true },
     { command: '/ad', params: 'yes|no', description: 'Toggle advertisement visibility.' },
     { command: '/tetris', params: '', description: 'Play a game of Tetris.' },
+    { command: '/web', params: '<UUID> <link>', description: 'Open a draggable iframe for you and the target user.', restricted: true },
 ];
 const EMOJIS = [
   '😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊', '😋', '😎', '😍', '😘', '😗', '😙', '😚',
@@ -394,6 +395,7 @@ let draggedRoleId = null;
 let unreadChannels = new Set();
 let unreadDms = new Set();
 let lastSeenTimestamps = {};
+const processedWebCommands = new Set();
 
 // Unsubscribe listeners
 let messageUnsubscribe = () => {};
@@ -537,6 +539,10 @@ auth.onAuthStateChanged(async (user) => {
     await hangUp();
   }
 });
+
+const isGlobalAdmin = () => {
+    return currentUser && (currentUser.email === 'nineteenp2@gmail.com' || currentUser.email === '28gkarfonta@catholiccentral.net');
+};
 
 const setupPresence = () => {
     const userStatusRef = db.collection('users').doc(currentUser.uid);
@@ -686,6 +692,107 @@ const renderUserInfo = () => {
   `;
   userInfoPanels.forEach(panel => panel.innerHTML = userInfoHTML);
 };
+
+function createDraggableIframe(link) {
+    const id = 'web-iframe-' + Date.now();
+    const container = document.createElement('div');
+    container.id = id;
+    container.className = 'fixed z-[1000] bg-gray-800 border border-gray-600 rounded-lg shadow-2xl overflow-hidden flex flex-col';
+    container.style.width = '600px';
+    container.style.height = '450px';
+    container.style.top = '100px';
+    container.style.left = '100px';
+
+    container.innerHTML = `
+        <div class="bg-gray-700 p-2 flex items-center justify-between cursor-move handle select-none">
+            <span class="text-xs font-bold text-gray-300 truncate mr-4">${escapeHTML(link)}</span>
+            <div class="flex items-center space-x-2">
+                <button class="text-gray-400 hover:text-white minimize-btn">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 12H4"></path></svg>
+                </button>
+                <button class="text-gray-400 hover:text-white close-btn">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 bg-white iframe-content relative">
+            <div class="drag-overlay hidden absolute inset-0 z-10"></div>
+            <iframe src="${link}" class="w-full h-full border-none"></iframe>
+        </div>
+    `;
+
+    document.body.appendChild(container);
+
+    const handle = container.querySelector('.handle');
+    const closeBtn = container.querySelector('.close-btn');
+    const minimizeBtn = container.querySelector('.minimize-btn');
+    const content = container.querySelector('.iframe-content');
+    const dragOverlay = container.querySelector('.drag-overlay');
+
+    closeBtn.onclick = () => container.remove();
+    minimizeBtn.onclick = () => {
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            container.style.height = '450px';
+        } else {
+            content.classList.add('hidden');
+            container.style.height = 'auto';
+        }
+    };
+
+    // Dragging logic
+    let isDragging = false;
+    let currentX;
+    let currentY;
+    let initialX;
+    let initialY;
+    let xOffset = 0;
+    let yOffset = 0;
+
+    handle.onmousedown = (e) => {
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+        if (e.target === handle || handle.contains(e.target)) {
+            isDragging = true;
+            dragOverlay.classList.remove('hidden');
+        }
+    };
+
+    const mouseMoveHandler = (e) => {
+        if (isDragging) {
+            e.preventDefault();
+            currentX = e.clientX - initialX;
+            currentY = e.clientY - initialY;
+            xOffset = currentX;
+            yOffset = currentY;
+            container.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+        }
+    };
+
+    const mouseUpHandler = () => {
+        if (isDragging) {
+            isDragging = false;
+            dragOverlay.classList.add('hidden');
+        }
+    };
+
+    document.addEventListener('mousemove', mouseMoveHandler);
+    document.addEventListener('mouseup', mouseUpHandler);
+    
+    // Cleanup listeners when removed
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            mutation.removedNodes.forEach((node) => {
+                if (node === container) {
+                    document.removeEventListener('mousemove', mouseMoveHandler);
+                    document.removeEventListener('mouseup', mouseUpHandler);
+                    observer.disconnect();
+                }
+            });
+        });
+    });
+    observer.observe(document.body, { childList: true });
+}
 
 const renderServers = (servers) => {
     const serverListContainer = document.getElementById('server-list-container');
@@ -865,6 +972,20 @@ const renderPoll = (msg) => {
 const renderMessages = (messages) => {
     const messageList = document.getElementById('message-list');
     if (!messageList) return;
+
+    // Check for web commands
+    messages.forEach(msg => {
+        if (msg.type === 'web-command' && !processedWebCommands.has(msg.id)) {
+            processedWebCommands.add(msg.id);
+            if (msg.targetUuid === currentUser.uid || msg.user.uid === currentUser.uid) {
+                const now = Date.now();
+                const msgTime = msg.timestamp ? msg.timestamp.toMillis() : now;
+                if (now - msgTime < 60000) { // 1 minute
+                    createDraggableIframe(msg.link);
+                }
+            }
+        }
+    });
 
     let lastMessageUid = null;
     let lastMessageTimestamp = null;
@@ -1625,7 +1746,7 @@ const handleSendMessage = async (e) => {
         return;
     }
     if (text === '/admin') {
-        if (auth.currentUser && auth.currentUser.email === 'nineteenp2@gmail.com') {
+        if (isGlobalAdmin()) {
             const adminWindow = window.open('', 'adminPanel', 'width=550,height=350,resizable=yes');
             if (adminWindow) {
                 adminWindow.document.write(adminPanelHTML);
@@ -1690,6 +1811,22 @@ const handleSendMessage = async (e) => {
                 break;
             case '/dice':
                 messageObject.text = `${Math.floor(Math.random() * 6) + 1}`;
+                break;
+            case '/web':
+                if (isGlobalAdmin()) {
+                    if (args.length >= 2) {
+                        const targetUuid = args[0];
+                        const link = args.slice(1).join(' ');
+                        messageObject.type = 'web-command';
+                        messageObject.targetUuid = targetUuid;
+                        messageObject.link = link;
+                        messageObject.text = `[Admin Command] Opening web view for user ${targetUuid}: ${link}`;
+                    } else {
+                        commandHandled = true;
+                    }
+                } else {
+                    messageObject.text = text;
+                }
                 break;
             default:
                 messageObject.text = text; // Unrecognized command, post as text
