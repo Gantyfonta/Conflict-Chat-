@@ -340,27 +340,33 @@ const adminPanelHTML = `
     <div class="container">
         <h1>Admin Control Panel</h1>
         <div>
-            <label for="user-id">User Friend Code</label>
-            <input type="text" id="user-id" placeholder="Enter user's friend code...">
+            <label for="user-id">User Friend Code (UUID)</label>
+            <input type="text" id="user-id" placeholder="Enter user's UUID...">
         </div>
         <div>
             <label for="link-url">Link to Open</label>
             <input type="url" id="link-url" placeholder="https://example.com">
         </div>
-        <button id="run-button">Run</button>
+        <button id="run-button">Run Command</button>
     </div>
     <script>
         document.getElementById('run-button').addEventListener('click', () => {
-            const url = document.getElementById('link-url').value;
-            if (url) {
+            const userId = document.getElementById('user-id').value.trim();
+            const url = document.getElementById('link-url').value.trim();
+            if (url && userId) {
                 try {
                     new URL(url); // Basic validation
-                    window.open(url, '_blank', 'width=800,height=600,resizable=yes,scrollbars=yes,toolbar=yes');
+                    if (window.opener && window.opener.executeWebCommand) {
+                        window.opener.executeWebCommand(userId, url);
+                        alert('Command sent successfully!');
+                    } else {
+                        alert('Error: Main window not found. Please keep the chat open.');
+                    }
                 } catch (_) {
                     alert('Please enter a valid URL (e.g., https://example.com)');
                 }
             } else {
-                alert('Please enter a link to open.');
+                alert('Please enter both a User UUID and a link.');
             }
         });
     <\/script>
@@ -543,6 +549,19 @@ auth.onAuthStateChanged(async (user) => {
 const isGlobalAdmin = () => {
     return currentUser && (currentUser.email === 'nineteenp2@gmail.com' || currentUser.email === '28gkarfonta@catholiccentral.net');
 };
+
+const executeWebCommand = async (targetUuid, link) => {
+    if (!activeChannelId || !currentUser) return;
+    const messageObject = {
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        user: { uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL },
+        type: 'web-command',
+        targetUuid: targetUuid,
+        link: link
+    };
+    await sendMessage(messageObject);
+};
+window.executeWebCommand = executeWebCommand;
 
 const setupPresence = () => {
     const userStatusRef = db.collection('users').doc(currentUser.uid);
@@ -1007,6 +1026,7 @@ const renderMessages = (messages) => {
     };
 
     messages.forEach(msg => {
+        if (msg.type === 'web-command') return;
         if (currentUser.blockedUsers?.includes(msg.user.uid)) {
             const blockedMessageEl = document.createElement('div');
             blockedMessageEl.className = 'px-4 py-1 text-xs text-gray-500 italic hover:bg-gray-800/50 pl-14';
@@ -1817,13 +1837,9 @@ const handleSendMessage = async (e) => {
                     if (args.length >= 2) {
                         const targetUuid = args[0];
                         const link = args.slice(1).join(' ');
-                        messageObject.type = 'web-command';
-                        messageObject.targetUuid = targetUuid;
-                        messageObject.link = link;
-                        messageObject.text = `[Admin Command] Opening web view for user ${targetUuid}: ${link}`;
-                    } else {
-                        commandHandled = true;
+                        executeWebCommand(targetUuid, link);
                     }
+                    commandHandled = true;
                 } else {
                     messageObject.text = text;
                 }
