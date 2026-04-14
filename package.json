@@ -1,5 +1,5 @@
 {
-  "name": "conflict-rooms",
+  "name": "conflict",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,8 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.0",
-    "firebase": "^12.5.0"
+    "react": "^19.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
