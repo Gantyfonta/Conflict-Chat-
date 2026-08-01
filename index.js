@@ -403,6 +403,163 @@ let unreadDms = new Set();
 let lastSeenTimestamps = {};
 const processedWebCommands = new Set();
 
+// Group Call State
+let activeGroupCall = null; // { serverId, channelId, channelName, roomName, api }
+let voiceChannelListeners = {}; // map of channelId -> unsubscribe function
+let isGroupCallDocked = false;
+
+// =================================================================================
+// Group Call Studio (Free Voice & Video Calls for 10+ Members)
+// =================================================================================
+
+const joinGroupCall = async (serverId, channelId, channelName) => {
+    if (activeGroupCall) {
+        if (activeGroupCall.channelId === channelId) {
+            document.getElementById('group-call-stage')?.classList.remove('hidden');
+            return;
+        }
+        await leaveGroupCall();
+    }
+
+    const roomName = `Conflict_Server_${serverId}_${channelId}`;
+    const groupCallStage = document.getElementById('group-call-stage');
+    const jitsiContainer = document.getElementById('jitsi-container');
+    const groupCallTitle = document.getElementById('group-call-channel-title');
+    if (!groupCallStage || !jitsiContainer) return;
+
+    groupCallStage.classList.remove('hidden');
+    if (groupCallTitle) groupCallTitle.textContent = `${channelName} (Voice & Video)`;
+
+    jitsiContainer.innerHTML = ''; // clear previous frame
+
+    // Register active presence in Firestore
+    try {
+        if (currentUser) {
+            const memberRef = db.collection('servers').doc(serverId)
+                .collection('channels').doc(channelId)
+                .collection('activeVoiceMembers').doc(currentUser.uid);
+            
+            await memberRef.set({
+                uid: currentUser.uid,
+                displayName: currentUser.displayName || 'User',
+                photoURL: currentUser.photoURL || '',
+                joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+    } catch (err) {
+        console.error("Error setting voice presence:", err);
+    }
+
+    let api = null;
+    if (window.JitsiMeetExternalAPI) {
+        try {
+            api = new window.JitsiMeetExternalAPI('meet.jit.si', {
+                roomName: roomName,
+                width: '100%',
+                height: '100%',
+                parentNode: jitsiContainer,
+                userInfo: {
+                    displayName: currentUser ? currentUser.displayName : 'User',
+                    email: currentUser ? (currentUser.email || '') : ''
+                },
+                configOverwrite: {
+                    startWithAudioMuted: false,
+                    startWithVideoMuted: false,
+                    prejoinPageEnabled: false,
+                    disableDeepLinking: true,
+                    enableWelcomePage: false
+                },
+                interfaceConfigOverwrite: {
+                    TOOLBAR_BUTTONS: [
+                        'microphone', 'camera', 'desktop', 'tileview', 'fullscreen',
+                        'chat', 'raisehand', 'participants-pane', 'hangup'
+                    ],
+                    SHOW_JITSI_WATERMARK: false,
+                    SHOW_WATERMARK_FOR_GUESTS: false,
+                    DEFAULT_BACKGROUND: '#161B22',
+                    MOBILE_APP_PROMO: false
+                }
+            });
+
+            api.addEventListener('videoConferenceLeft', () => {
+                leaveGroupCall();
+            });
+        } catch (e) {
+            console.error("Jitsi API initialization failed, falling back to iframe:", e);
+            embedFallbackJitsiIframe(jitsiContainer, roomName);
+        }
+    } else {
+        embedFallbackJitsiIframe(jitsiContainer, roomName);
+    }
+
+    activeGroupCall = {
+        serverId,
+        channelId,
+        channelName,
+        roomName,
+        api
+    };
+
+    listenToActiveVoiceMembers(serverId, channelId);
+};
+
+const embedFallbackJitsiIframe = (container, roomName) => {
+    container.innerHTML = `
+        <iframe 
+            src="https://meet.jit.si/${roomName}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false" 
+            allow="camera; microphone; display-capture; autoplay; clipboard-write;" 
+            style="width: 100%; height: 100%; border: 0;"
+        ></iframe>
+    `;
+};
+
+const leaveGroupCall = async () => {
+    if (!activeGroupCall) return;
+
+    const { serverId, channelId, api } = activeGroupCall;
+
+    if (api) {
+        try {
+            api.dispose();
+        } catch (e) {
+            console.error("Error disposing Jitsi API:", e);
+        }
+    }
+
+    // Remove presence from Firestore
+    try {
+        if (serverId && channelId && currentUser) {
+            await db.collection('servers').doc(serverId)
+                .collection('channels').doc(channelId)
+                .collection('activeVoiceMembers').doc(currentUser.uid).delete();
+        }
+    } catch (err) {
+        console.error("Error removing voice presence:", err);
+    }
+
+    const jitsiContainer = document.getElementById('jitsi-container');
+    if (jitsiContainer) jitsiContainer.innerHTML = '';
+
+    const groupCallStage = document.getElementById('group-call-stage');
+    if (groupCallStage) groupCallStage.classList.add('hidden');
+
+    activeGroupCall = null;
+};
+
+const listenToActiveVoiceMembers = (serverId, channelId) => {
+    const badge = document.getElementById('group-call-member-badge');
+    
+    return db.collection('servers').doc(serverId)
+        .collection('channels').doc(channelId)
+        .collection('activeVoiceMembers')
+        .onSnapshot((snapshot) => {
+            const count = snapshot.size;
+            if (badge) {
+                badge.textContent = `${count} Active`;
+            }
+        });
+};
+
 // Unsubscribe listeners
 let messageUnsubscribe = () => {};
 let channelUnsubscribe = () => {};
@@ -882,24 +1039,34 @@ const renderChannels = (server, channels) => {
     const hasModPerms = currentUserHasModPermissions();
 
     serverNameText.textContent = server.name;
-    channelList.innerHTML = `
-        <div class="flex items-center justify-between px-2 pt-2 pb-1">
-            <h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Text Channels</h2>
-            ${hasModPerms ? `
-            <button id="add-channel-button" class="text-gray-400 hover:text-white">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>` : ''}
-        </div>
+    
+    const textChannels = channels.filter(c => c.type !== 'voice');
+    const voiceChannels = channels.filter(c => c.type === 'voice');
+
+    channelList.innerHTML = '';
+
+    // Text Channels Header
+    const textHeader = document.createElement('div');
+    textHeader.className = 'flex items-center justify-between px-2 pt-2 pb-1';
+    textHeader.innerHTML = `
+        <h2 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Text Channels</h2>
+        ${hasModPerms ? `
+        <button id="add-channel-button" class="text-gray-400 hover:text-white transition-colors" title="Create Text Channel">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>` : ''}
     `;
-    
+    channelList.appendChild(textHeader);
+
     if (hasModPerms) {
-        document.getElementById('add-channel-button').onclick = () => {
+        textHeader.querySelector('#add-channel-button')?.addEventListener('click', () => {
             const createChannelModal = document.getElementById('create-channel-modal');
-            if(createChannelModal) createChannelModal.style.display = 'flex';
-        };
+            const textRadio = createChannelModal?.querySelector('input[value="text"]');
+            if (textRadio) textRadio.checked = true;
+            if (createChannelModal) createChannelModal.style.display = 'flex';
+        });
     }
-    
-    channels.forEach(channel => {
+
+    textChannels.forEach(channel => {
         const isActive = channel.id === activeChannelId;
         const isUnread = unreadChannels.has(channel.id) && !isActive;
         const channelLink = document.createElement('button');
@@ -907,11 +1074,94 @@ const renderChannels = (server, channels) => {
         channelLink.innerHTML = `
             ${isUnread ? '<div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-2 bg-white rounded-r-full"></div>' : ''}
             <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
-            <span class="font-medium truncate">${channel.name}</span>
+            <span class="font-medium truncate">${escapeHTML(channel.name)}</span>
         `;
         channelLink.onclick = () => selectChannel(channel.id);
         channelList.appendChild(channelLink);
     });
+
+    // Voice & Video Channels Header
+    const voiceHeader = document.createElement('div');
+    voiceHeader.className = 'flex items-center justify-between px-2 pt-4 pb-1';
+    voiceHeader.innerHTML = `
+        <h2 class="text-xs font-bold tracking-wider text-green-400 uppercase flex items-center">
+            <svg class="w-3.5 h-3.5 mr-1 text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            Voice & Video
+        </h2>
+        ${hasModPerms ? `
+        <button id="add-voice-channel-button" class="text-gray-400 hover:text-white transition-colors" title="Create Voice Channel">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>` : ''}
+    `;
+    channelList.appendChild(voiceHeader);
+
+    if (hasModPerms) {
+        voiceHeader.querySelector('#add-voice-channel-button')?.addEventListener('click', () => {
+            const createChannelModal = document.getElementById('create-channel-modal');
+            const voiceRadio = createChannelModal?.querySelector('input[value="voice"]');
+            if (voiceRadio) voiceRadio.checked = true;
+            if (createChannelModal) createChannelModal.style.display = 'flex';
+        });
+    }
+
+    if (voiceChannels.length === 0) {
+        const noVoiceEl = document.createElement('div');
+        noVoiceEl.className = 'px-2 py-1 text-xs text-gray-500 italic';
+        noVoiceEl.textContent = 'No voice channels yet.';
+        channelList.appendChild(noVoiceEl);
+    } else {
+        voiceChannels.forEach(channel => {
+            const isInThisCall = activeGroupCall && activeGroupCall.channelId === channel.id;
+            const channelBox = document.createElement('div');
+            channelBox.className = 'mb-1';
+
+            const channelBtn = document.createElement('button');
+            channelBtn.className = `flex items-center justify-between w-full px-2 py-1.5 text-left rounded-md transition-colors duration-150 ${isInThisCall ? 'bg-green-900/40 text-green-300 font-semibold border border-green-500/30' : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'}`;
+            channelBtn.innerHTML = `
+                <div class="flex items-center truncate flex-1">
+                    <svg class="w-4 h-4 mr-2 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                    <span class="font-medium truncate">${escapeHTML(channel.name)}</span>
+                </div>
+                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${isInThisCall ? 'bg-green-500 text-black' : 'bg-gray-700 text-gray-300'}">
+                    ${isInThisCall ? 'Connected' : 'Join'}
+                </span>
+            `;
+
+            channelBtn.onclick = () => {
+                joinGroupCall(server.id, channel.id, channel.name);
+            };
+
+            const membersList = document.createElement('div');
+            membersList.id = `voice-members-${channel.id}`;
+            membersList.className = 'ml-6 space-y-1 mt-1';
+
+            channelBox.appendChild(channelBtn);
+            channelBox.appendChild(membersList);
+            channelList.appendChild(channelBox);
+
+            // Real-time active voice members listener
+            if (voiceChannelListeners[channel.id]) {
+                voiceChannelListeners[channel.id]();
+            }
+            voiceChannelListeners[channel.id] = db.collection('servers').doc(server.id)
+                .collection('channels').doc(channel.id)
+                .collection('activeVoiceMembers')
+                .onSnapshot(snapshot => {
+                    membersList.innerHTML = '';
+                    snapshot.docs.forEach(doc => {
+                        const m = doc.data();
+                        const mAvatar = isValidHttpUrl(m.photoURL) ? m.photoURL : DEFAULT_AVATAR_SVG;
+                        const mEl = document.createElement('div');
+                        mEl.className = 'flex items-center space-x-2 text-xs text-gray-300 py-0.5';
+                        mEl.innerHTML = `
+                            <img src="${mAvatar}" class="w-4 h-4 rounded-full object-cover border border-green-500">
+                            <span class="truncate">${escapeHTML(m.displayName)}</span>
+                        `;
+                        membersList.appendChild(mEl);
+                    });
+                });
+        });
+    }
 };
 
 const renderFriends = (friends) => {
@@ -1597,10 +1847,24 @@ const selectChannel = (channelId) => {
     channelRef.get().then((doc) => {
         if (doc.exists) {
             const channelData = doc.data();
-            if(chatHeader) chatHeader.innerHTML = `
-            <svg class="w-6 h-6 text-gray-500 mr-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
-            <h2 class="font-semibold text-lg text-white">${channelData.name}</h2>
-            `;
+            if(chatHeader) {
+                chatHeader.innerHTML = `
+                <div class="flex items-center truncate">
+                    <svg class="w-6 h-6 text-gray-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+                    <h2 class="font-semibold text-lg text-white truncate">${escapeHTML(channelData.name)}</h2>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button id="server-group-call-header-btn" class="bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-3 py-1.5 rounded-md flex items-center transition-colors shadow">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                        Group Call
+                    </button>
+                </div>
+                `;
+
+                document.getElementById('server-group-call-header-btn')?.addEventListener('click', () => {
+                    joinGroupCall(activeServerId, channelId, channelData.name);
+                });
+            }
             if(messageInput) messageInput.placeholder = `Message #${channelData.name}`;
         }
     });
@@ -1906,7 +2170,12 @@ const handleCreateServer = async (e) => {
             roleOrder: ['owner', 'default']
         });
         await newServerRef.collection('channels').doc('general').set({
-            name: 'general'
+            name: 'general',
+            type: 'text'
+        });
+        await newServerRef.collection('channels').doc('general-voice').set({
+            name: 'General Voice',
+            type: 'voice'
         });
         await newServerRef.collection('members').doc(currentUser.uid).set({
             roles: ['owner', 'default']
@@ -1922,13 +2191,17 @@ const handleCreateChannel = async (e) => {
     e.preventDefault();
     if (!currentUserHasModPermissions()) return;
     const channelNameInput = document.getElementById('channel-name-input');
+    const channelTypeRadio = document.querySelector('input[name="channel-type"]:checked');
     const modal = document.getElementById('create-channel-modal');
     const channelName = channelNameInput.value.trim();
+    const channelType = channelTypeRadio ? channelTypeRadio.value : 'text';
+
     if(channelName && activeServerId) {
         const formattedName = channelName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
         if (formattedName) {
             await db.collection('servers').doc(activeServerId).collection('channels').add({
-                name: formattedName
+                name: formattedName,
+                type: channelType
             });
             channelNameInput.value = '';
             if(modal) modal.style.display = 'none';
@@ -3313,3 +3586,33 @@ emojiButton.addEventListener('click', (e) => {
 // Initialize Home Panel State
 const isCollapsed = localStorage.getItem('homePanelCollapsed') === 'true';
 setHomePanelState(isCollapsed);
+
+// Group Call UI Controls
+document.getElementById('leave-group-call-btn')?.addEventListener('click', leaveGroupCall);
+
+document.getElementById('group-call-dock-btn')?.addEventListener('click', () => {
+    const jitsiContainer = document.getElementById('jitsi-container');
+    const dockText = document.getElementById('group-call-dock-text');
+    if (!jitsiContainer) return;
+
+    if (isGroupCallDocked) {
+        jitsiContainer.classList.remove('h-32');
+        jitsiContainer.classList.add('h-[450px]');
+        if (dockText) dockText.textContent = 'Minimize Call';
+        isGroupCallDocked = false;
+    } else {
+        jitsiContainer.classList.remove('h-[450px]');
+        jitsiContainer.classList.add('h-32');
+        if (dockText) dockText.textContent = 'Expand Call';
+        isGroupCallDocked = true;
+    }
+});
+
+// Clean up group call presence on page unload
+window.addEventListener('beforeunload', () => {
+    if (activeGroupCall && currentUser) {
+        db.collection('servers').doc(activeGroupCall.serverId)
+            .collection('channels').doc(activeGroupCall.channelId)
+            .collection('activeVoiceMembers').doc(currentUser.uid).delete();
+    }
+});

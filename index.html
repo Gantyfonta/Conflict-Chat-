@@ -88,6 +88,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <!-- Jitsi Meet External API for Free Group Calls (up to 10+ people) -->
+    <script src="https://meet.jit.si/external_api.js"></script>
   <script type="importmap">
 {
   "imports": {
@@ -298,9 +300,33 @@
             </div>
         </div>
         <div id="chat-view" class="hidden flex-1 flex-col overflow-hidden">
-          <header id="chat-header" class="h-12 flex items-center px-4 shadow-md border-b border-gray-600 flex-shrink-0">
+          <header id="chat-header" class="h-12 flex items-center justify-between px-4 shadow-md border-b border-gray-600 flex-shrink-0">
             <!-- Channel/DM name rendered by JS -->
           </header>
+
+          <!-- Server Group Call Studio (Free 10+ member voice & video) -->
+          <div id="group-call-stage" class="hidden flex-col bg-gray-900 border-b border-gray-600 relative transition-all duration-300">
+              <div class="h-10 bg-gray-800 px-4 flex items-center justify-between border-b border-gray-700">
+                  <div class="flex items-center space-x-2 text-sm font-semibold text-white">
+                      <span class="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
+                      <span id="group-call-channel-title">Server Group Call</span>
+                      <span id="group-call-member-badge" class="text-xs bg-green-900/60 text-green-300 px-2.5 py-0.5 rounded-full font-bold">1 Active</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                      <button id="group-call-dock-btn" class="text-xs font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 px-2.5 py-1 rounded-md flex items-center transition-colors">
+                          <svg class="w-3.5 h-3.5 mr-1 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                          <span id="group-call-dock-text">Minimize Call</span>
+                      </button>
+                      <button id="leave-group-call-btn" class="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded-md flex items-center transition-colors shadow-sm">
+                          <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 17l5-5-5-5M19.8 12H9M13 22a10 10 0 1 1 0-20"/></svg>
+                          Leave Call
+                      </button>
+                  </div>
+              </div>
+              <div id="jitsi-container" class="w-full h-[450px] bg-black relative transition-all duration-300">
+                  <!-- Jitsi group video call embedded here -->
+              </div>
+          </div>
           
           <main class="flex-1 flex overflow-hidden">
             <div class="flex-1 flex flex-col overflow-hidden">
@@ -561,16 +587,41 @@
 
     <!-- Create Channel Modal -->
     <div id="create-channel-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center">
-        <div class="bg-gray-700 rounded-lg p-6 w-full max-w-md" >
-            <h2 class="text-2xl font-bold text-center mb-4">Create Text Channel</h2>
+        <div class="bg-gray-700 rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-2xl font-bold text-center mb-4 text-white">Create Channel</h2>
             <form id="create-channel-form">
+                <div class="mb-4">
+                    <label class="text-xs font-bold uppercase text-gray-400">Channel Type</label>
+                    <div class="grid grid-cols-2 gap-3 mt-1.5">
+                        <label class="flex items-center p-3 bg-gray-900 border border-gray-600 rounded-md cursor-pointer hover:border-blue-500 transition-colors">
+                            <input type="radio" name="channel-type" value="text" checked class="form-radio text-blue-500 mr-2.5">
+                            <div>
+                                <div class="font-bold text-sm text-white flex items-center">
+                                    <svg class="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+                                    Text
+                                </div>
+                                <div class="text-[11px] text-gray-400 mt-0.5">Post text & images</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center p-3 bg-gray-900 border border-gray-600 rounded-md cursor-pointer hover:border-blue-500 transition-colors">
+                            <input type="radio" name="channel-type" value="voice" class="form-radio text-blue-500 mr-2.5">
+                            <div>
+                                <div class="font-bold text-sm text-white flex items-center">
+                                    <svg class="w-4 h-4 mr-1 text-green-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                                    Voice & Video
+                                </div>
+                                <div class="text-[11px] text-gray-400 mt-0.5">Free 10+ member calls</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
                 <div class="mb-4">
                     <label for="channel-name-input" class="text-xs font-bold uppercase text-gray-400">Channel Name</label>
                     <input id="channel-name-input" type="text" placeholder="new-channel" class="w-full bg-gray-900 border border-gray-600 rounded-md p-2 mt-1 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                 </div>
                 <div class="bg-gray-800 p-4 rounded-md flex justify-end space-x-4">
                      <button type="button" id="cancel-create-channel" class="text-gray-300 hover:text-white">Cancel</button>
-                     <button type="submit" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-md font-semibold">Create Channel</button>
+                     <button type="submit" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-md font-semibold text-white">Create Channel</button>
                 </div>
             </form>
         </div>
